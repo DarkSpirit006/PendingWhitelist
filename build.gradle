@@ -1,0 +1,30 @@
+plugins {
+    id 'java'
+}
+
+group = 'dev.darkspirit69'
+version = '1.0.0'
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://repo.papermc.io/repository/maven-public/' }
+}
+
+dependencies {
+    compileOnly 'io.papermc.paper:paper-api:26.2.build.60-beta'
+    implementation 'com.google.code.gson:gson:2.13.0'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+tasks.jar {
+    archiveBaseName.set('PendingWhitelist')
+}

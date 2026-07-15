@@ -1,0 +1,17 @@
+/.gradle/
+/build/
+/out/
+*.iml
+/.idea/
+/.vscode/
+*.class
+*.log
+*.tmp
+*.zip
+gradle-*/
+gradle-*-bin.zip
+*.keystore
+local.properties
+/.DS_Store
+/.env
+/.settings/

@@ -1,0 +1,15 @@
+name: PendingWhitelist
+main: dev.darkspirit69.pendingwhitelist.PendingWhitelistPlugin
+version: 1.0.0
+api-version: "26.2"
+authors: [Dark_Spirit69]
+description: Tracks players rejected by the whitelist and offers simple management commands.
+commands:
+  wl:
+    description: Manage pending whitelist entries.
+    usage: /wl <list|add|reload>
+    permission: pendingwhitelist.admin
+permissions:
+  pendingwhitelist.admin:
+    description: Allows managing the pending whitelist plugin.
+    default: op
