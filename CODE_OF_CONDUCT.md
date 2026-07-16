@@ -1,5 +1,7 @@
-# Code of Conduct
+# Code Of Conduct
 
-This project follows the [Contributor Covenant](https://www.contributor-covenant.org/). Be respectful and professional.
+PendingWhitelist follows the [Contributor Covenant](https://www.contributor-covenant.org/).
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the maintainers.
+Please be respectful, constructive, and patient when opening issues, reviewing pull requests, or discussing changes. Harassment, personal attacks, and abusive behavior are not welcome.
+
+Report unacceptable behavior to the project maintainers.

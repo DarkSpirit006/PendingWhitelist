@@ -1,26 +1,40 @@
 # Usage
 
-This document provides expanded examples of how to use PendingWhitelist.
+This document provides expanded examples for managing PendingWhitelist.
 
-Listing pending players
+## Pending Players
 
-- `/wl list` — show the first page of pending players (newest first).
-- `/wl list 2` — show page 2.
+- `/wl pl` - show the first page of pending players, newest first.
+- `/wl pl 2` - show page 2 of pending players.
 
-Whitelisting players
+Hover over pending player names in-game to see stored details such as UUID and attempt count.
 
-- Single user:
-  - `/wl add Steve123`
-- Multiple users:
-  - `/wl add Steve123 AlexGaming Notch`
+## Whitelisting Players
 
-The command output summarizes which players were added, already whitelisted, or unknown.
+- Single player: `/wl add Steve123`
+- Multiple players: `/wl add Steve123 AlexGaming Notch`
 
-Reloading config
+When the player is pending, `/wl add` whitelists the player and removes the pending entry. If the player is already whitelisted, the pending entry is still cleared.
 
-- `/wl reload` — reloads `config.yml` only. Does not touch `pending.json`.
+PendingWhitelist prefers the stored username when adding a pending player to the server whitelist. This keeps Bukkit/Paper's `whitelist.json` readable instead of writing blank names for UUID-only entries.
 
-Notes
+## Removing Players
 
-- The plugin stores usernames and simple metadata in `plugins/PendingWhitelist/pending.json`.
+- `/wl rpl Steve123` - remove only the pending entry.
+- `/wl remove Steve123` - remove from both the pending list and the server whitelist.
+
+Use `rpl` when you want to reject or ignore a pending request without touching the server whitelist.
+
+## Whitelist View
+
+- `/wl list` - show currently whitelisted players.
+
+## Reloading Config
+
+- `/wl reload` - reloads `config.yml`. This does not delete or rewrite `pending.json` unless storage changes are already pending.
+
+## Notes
+
+- Admin join notifications include clickable whitelist and remove-pending actions.
 - Entries are kept in memory and written asynchronously to disk when changed.
+- `/wl add` and `/wl rpl` are the official review commands. Older review aliases are intentionally not exposed.

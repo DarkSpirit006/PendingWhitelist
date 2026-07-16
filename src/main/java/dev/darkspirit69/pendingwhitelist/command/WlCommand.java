@@ -16,8 +16,11 @@ import org.bukkit.command.TabCompleter;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public class WlCommand implements CommandExecutor, TabCompleter {
+
+    private static final String ROOT_USAGE = "&cUsage: /wl <pl|list|add|remove|rpl|reload>";
 
     private final PendingWhitelistPlugin plugin;
     private final PendingStorage pendingStorage;
@@ -32,35 +35,45 @@ public class WlCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!sender.hasPermission("pendingwhitelist.admin")) {
-            sender.sendMessage(TextUtil.color("&cYou do not have permission."));
+            TextUtil.send(sender, "&cYou do not have permission.");
             return true;
         }
 
         if (args.length == 0) {
-            sender.sendMessage(TextUtil.color("&cUsage: /wl <pl|list|add|remove|rpl|reload>"));
+            sendHelp(sender);
             return true;
         }
 
-        String subcommand = args[0].toLowerCase();
+        String subcommand = args[0].toLowerCase(Locale.ROOT);
         return switch (subcommand) {
             case "pl" -> handlePendingList(sender, args);
             case "list" -> handleWhitelistedList(sender, args);
             case "add" -> handleAdd(sender, args);
             case "remove" -> handleRemove(sender, args);
             case "rpl" -> handleRemovePendingOnly(sender, args);
-            case "approve" -> handleApprove(sender, args);
-            case "deny" -> handleDeny(sender, args);
             case "reload" -> handleReload(sender, args);
             default -> {
-                sender.sendMessage(TextUtil.color("&cUsage: /wl <pl|list|add|remove|rpl|reload>"));
+                TextUtil.send(sender, "&cUnknown subcommand.");
+                TextUtil.send(sender, ROOT_USAGE);
+                sendHelp(sender);
                 yield true;
             }
         };
     }
 
+    private void sendHelp(CommandSender sender) {
+        TextUtil.send(sender, "&8&m--------&r &6PendingWhitelist &8&m--------");
+        TextUtil.send(sender, "&e/wl pl [page] &7- View pending players");
+        TextUtil.send(sender, "&e/wl list &7- View whitelisted players");
+        TextUtil.send(sender, "&e/wl add <name...> &7- Whitelist pending players");
+        TextUtil.send(sender, "&e/wl remove <name...> &7- Remove from whitelist and pending");
+        TextUtil.send(sender, "&e/wl rpl <name...> &7- Remove only from pending");
+        TextUtil.send(sender, "&e/wl reload &7- Reload the config");
+    }
+
     private boolean handlePendingList(CommandSender sender, String[] args) {
         if (args.length > 2) {
-            sender.sendMessage(TextUtil.color("&cUsage: /wl pl [page]"));
+            TextUtil.send(sender, "&cUsage: /wl pl [page]");
             return true;
         }
 
@@ -69,14 +82,14 @@ public class WlCommand implements CommandExecutor, TabCompleter {
             try {
                 page = Integer.parseInt(args[1]);
             } catch (NumberFormatException ex) {
-                sender.sendMessage(TextUtil.color("&cPage must be a number."));
+                TextUtil.send(sender, "&cPage must be a number.");
                 return true;
             }
         }
 
         List<PendingEntry> entries = pendingStorage.getPendingEntriesSortedByRecencyDesc();
         if (entries.isEmpty()) {
-            sender.sendMessage(TextUtil.color("&eNo pending players."));
+            TextUtil.send(sender, "&eNo pending players.");
             return true;
         }
 
@@ -91,7 +104,8 @@ public class WlCommand implements CommandExecutor, TabCompleter {
 
         int start = (page - 1) * pageSize;
         int end = Math.min(start + pageSize, entries.size());
-        sender.sendMessage(TextUtil.color("&6━━ Pending players (page " + page + " of " + totalPages + ") ━━"));
+        TextUtil.send(sender, "&8&m--------&r &6Pending players &7(" + entries.size() + ") &8&m--------");
+        TextUtil.send(sender, "&7Page &f" + page + "&7/&f" + totalPages);
         for (int i = start; i < end; i++) {
             PendingEntry entry = entries.get(i);
             String displayName = entry.displayName();
@@ -112,25 +126,25 @@ public class WlCommand implements CommandExecutor, TabCompleter {
                         .append(Component.text(displayName, NamedTextColor.WHITE));
                 player.sendMessage(message.hoverEvent(HoverEvent.showText(hover)));
             } else {
-                sender.sendMessage(TextUtil.color("&7• &f" + displayName));
+                TextUtil.send(sender, "&8- &f" + displayName);
             }
         }
         return true;
     }
 
     private boolean handleWhitelistedList(CommandSender sender, String[] args) {
-        if (args.length > 2) {
-            sender.sendMessage(TextUtil.color("&cUsage: /wl list"));
+        if (args.length != 1) {
+            TextUtil.send(sender, "&cUsage: /wl list");
             return true;
         }
 
         List<String> whitelisted = pendingStorage.getWhitelistedUsernames();
         if (whitelisted.isEmpty()) {
-            sender.sendMessage(TextUtil.color("&eNo whitelisted players."));
+            TextUtil.send(sender, "&eNo whitelisted players.");
             return true;
         }
 
-        sender.sendMessage(TextUtil.color("&6━━ Whitelisted players ━━"));
+        TextUtil.send(sender, "&8&m--------&r &6Whitelisted players &7(" + whitelisted.size() + ") &8&m--------");
         for (String name : whitelisted) {
             if (sender instanceof org.bukkit.entity.Player player) {
                 Component hover = Component.text()
@@ -143,74 +157,15 @@ public class WlCommand implements CommandExecutor, TabCompleter {
                 player.sendMessage(Component.text("• ", NamedTextColor.GREEN)
                         .append(Component.text(name, NamedTextColor.WHITE).hoverEvent(HoverEvent.showText(hover))));
             } else {
-                sender.sendMessage(TextUtil.color("&a• &f" + name));
+                TextUtil.send(sender, "&8- &f" + name);
             }
-        }
-        return true;
-    }
-
-    private boolean handleApprove(CommandSender sender, String[] args) {
-        if (args.length < 2) {
-            sender.sendMessage(TextUtil.color("&cUsage: /wl approve <identifier> [identifier ...]"));
-            return true;
-        }
-
-        List<String> approved = new ArrayList<>();
-        List<String> notFound = new ArrayList<>();
-        for (int i = 1; i < args.length; i++) {
-            String identifier = args[i];
-            if (pendingStorage.isPending(identifier)) {
-                pendingStorage.addToWhitelist(identifier);
-                pendingStorage.removePendingOnly(identifier);
-                String label = pendingStorage.resolveDisplayNameForIdentifier(identifier);
-                approved.add(label != null && !label.isBlank() ? label : identifier);
-            } else {
-                notFound.add(identifier);
-            }
-        }
-
-        sender.sendMessage(TextUtil.color("&a✓ Approved"));
-        for (String identifier : approved) {
-            sendPlayerLine(sender, "✔", identifier, NamedTextColor.GREEN, "approved");
-        }
-        sender.sendMessage(TextUtil.color("&c✖ Not found in pending list"));
-        for (String identifier : notFound) {
-            sendPlayerLine(sender, "•", identifier, NamedTextColor.RED, "not found");
-        }
-        return true;
-    }
-
-    private boolean handleDeny(CommandSender sender, String[] args) {
-        if (args.length < 2) {
-            sender.sendMessage(TextUtil.color("&cUsage: /wl deny <identifier> [identifier ...]"));
-            return true;
-        }
-
-        List<String> denied = new ArrayList<>();
-        List<String> notFound = new ArrayList<>();
-        for (int i = 1; i < args.length; i++) {
-            String identifier = args[i];
-            if (pendingStorage.removePendingOnly(identifier)) {
-                denied.add(identifier);
-            } else {
-                notFound.add(identifier);
-            }
-        }
-
-        sender.sendMessage(TextUtil.color("&a✓ Denied"));
-        for (String identifier : denied) {
-            sendPlayerLine(sender, "✔", identifier, NamedTextColor.GREEN, "denied");
-        }
-        sender.sendMessage(TextUtil.color("&c✖ Not found in pending list"));
-        for (String identifier : notFound) {
-            sendPlayerLine(sender, "•", identifier, NamedTextColor.RED, "not found");
         }
         return true;
     }
 
     private boolean handleAdd(CommandSender sender, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage(TextUtil.color("&cUsage: /wl add <username> [username ...]"));
+            TextUtil.send(sender, "&cUsage: /wl add <username> [username ...]");
             return true;
         }
 
@@ -222,8 +177,8 @@ public class WlCommand implements CommandExecutor, TabCompleter {
             String username = args[i];
             if (pendingStorage.isPending(username)) {
                 boolean addedToWhitelist = pendingStorage.addToWhitelist(username);
+                pendingStorage.removePendingOnly(username);
                 if (addedToWhitelist) {
-                    pendingStorage.remove(username);
                     added.add(username);
                 } else {
                     alreadyWhitelisted.add(username);
@@ -237,24 +192,16 @@ public class WlCommand implements CommandExecutor, TabCompleter {
             }
         }
 
-        sender.sendMessage(TextUtil.color("&a✓ Added"));
-        for (String username : added) {
-            sendPlayerLine(sender, "✔", username, NamedTextColor.GREEN, "whitelisted");
-        }
-        sender.sendMessage(TextUtil.color("&e• Already whitelisted"));
-        for (String username : alreadyWhitelisted) {
-            sendPlayerLine(sender, "•", username, NamedTextColor.YELLOW, "already whitelisted");
-        }
-        sender.sendMessage(TextUtil.color("&c✖ Unknown"));
-        for (String username : unknown) {
-            sendPlayerLine(sender, "•", username, NamedTextColor.RED, "unknown");
-        }
+        sendResultGroup(sender, "&a✓ Added", added, "✔", NamedTextColor.GREEN, "whitelisted");
+        sendResultGroup(sender, "&e• Already whitelisted", alreadyWhitelisted, "•", NamedTextColor.YELLOW,
+                "already whitelisted");
+        sendResultGroup(sender, "&c✖ Unknown", unknown, "•", NamedTextColor.RED, "unknown");
         return true;
     }
 
     private boolean handleRemove(CommandSender sender, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage(TextUtil.color("&cUsage: /wl remove <identifier> [identifier ...]"));
+            TextUtil.send(sender, "&cUsage: /wl remove <identifier> [identifier ...]");
             return true;
         }
 
@@ -270,20 +217,14 @@ public class WlCommand implements CommandExecutor, TabCompleter {
             }
         }
 
-        sender.sendMessage(TextUtil.color("&a✓ Removed"));
-        for (String identifier : removed) {
-            sendPlayerLine(sender, "✔", identifier, NamedTextColor.GREEN, "removed");
-        }
-        sender.sendMessage(TextUtil.color("&c✖ Not found"));
-        for (String identifier : notFound) {
-            sendPlayerLine(sender, "•", identifier, NamedTextColor.RED, "not found");
-        }
+        sendResultGroup(sender, "&a✓ Removed", removed, "✔", NamedTextColor.GREEN, "removed");
+        sendResultGroup(sender, "&c✖ Not found", notFound, "•", NamedTextColor.RED, "not found");
         return true;
     }
 
     private boolean handleRemovePendingOnly(CommandSender sender, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage(TextUtil.color("&cUsage: /wl rpl <identifier> [identifier ...]"));
+            TextUtil.send(sender, "&cUsage: /wl rpl <identifier> [identifier ...]");
             return true;
         }
 
@@ -298,26 +239,33 @@ public class WlCommand implements CommandExecutor, TabCompleter {
             }
         }
 
-        sender.sendMessage(TextUtil.color("&a✓ Removed from pending list"));
-        for (String identifier : removed) {
-            sendPlayerLine(sender, "✔", identifier, NamedTextColor.GREEN, "removed from pending");
-        }
-        sender.sendMessage(TextUtil.color("&c✖ Not found in pending list"));
-        for (String identifier : notFound) {
-            sendPlayerLine(sender, "•", identifier, NamedTextColor.RED, "not found");
-        }
+        sendResultGroup(sender, "&a✓ Removed from pending list", removed, "✔", NamedTextColor.GREEN,
+                "removed from pending");
+        sendResultGroup(sender, "&c✖ Not found in pending list", notFound, "•", NamedTextColor.RED, "not found");
         return true;
     }
 
     private boolean handleReload(CommandSender sender, String[] args) {
         if (args.length != 1) {
-            sender.sendMessage(TextUtil.color("&cUsage: /wl reload"));
+            TextUtil.send(sender, "&cUsage: /wl reload");
             return true;
         }
         plugin.reloadConfig();
         pendingStorage.loadFromDisk();
-        sender.sendMessage(TextUtil.color("&aReload complete."));
+        TextUtil.send(sender, "&aReload complete.");
         return true;
+    }
+
+    private void sendResultGroup(CommandSender sender, String header, List<String> identifiers, String icon,
+            NamedTextColor iconColor, String status) {
+        if (identifiers.isEmpty()) {
+            return;
+        }
+
+        TextUtil.send(sender, header);
+        for (String identifier : identifiers) {
+            sendPlayerLine(sender, icon, identifier, iconColor, status);
+        }
     }
 
     private void sendPlayerLine(CommandSender sender, String icon, String identifier, NamedTextColor iconColor,
@@ -345,7 +293,7 @@ public class WlCommand implements CommandExecutor, TabCompleter {
             player.sendMessage(Component.text(icon + " ", iconColor)
                     .append(Component.text(resolvedName, NamedTextColor.WHITE).hoverEvent(HoverEvent.showText(hover))));
         } else {
-            sender.sendMessage(TextUtil.color("&7" + icon + " &f" + resolvedName + " &8(" + status + ")"));
+            TextUtil.send(sender, "&7" + icon + " &f" + resolvedName + " &8(" + status + ")");
         }
     }
 

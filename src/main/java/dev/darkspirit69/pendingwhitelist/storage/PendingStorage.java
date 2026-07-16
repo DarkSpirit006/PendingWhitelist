@@ -220,6 +220,8 @@ public class PendingStorage {
         String displayName = resolvedName != null && !resolvedName.isBlank() ? resolvedName
                 : (username != null && !username.isBlank() ? username : "unknown");
         String identifier = uuid != null ? uuid.toString() : displayName;
+        String commandIdentifier = isPlayerName(resolvedName) ? resolvedName
+                : (isPlayerName(username) ? username : identifier);
 
         Component hover = Component.text()
                 .append(Component.text("UUID: ", NamedTextColor.GRAY))
@@ -229,25 +231,24 @@ public class PendingStorage {
                 .append(Component.text(String.valueOf(attempts), NamedTextColor.WHITE))
                 .build();
 
-        Component approve = Component.text("[APPROVE]", NamedTextColor.GREEN)
-                .clickEvent(ClickEvent.runCommand("/wl approve " + identifier))
-                .hoverEvent(
-                        HoverEvent.showText(Component.text("Approve and whitelist this player", NamedTextColor.GREEN)));
-        Component deny = Component.text("[DENY]", NamedTextColor.RED)
-                .clickEvent(ClickEvent.runCommand("/wl deny " + identifier))
-                .hoverEvent(HoverEvent
-                        .showText(Component.text("Deny and remove this player from pending", NamedTextColor.RED)));
+        Component add = Component.text("[WHITELIST]", NamedTextColor.GREEN)
+                .clickEvent(ClickEvent.runCommand("/wl add " + commandIdentifier))
+                .hoverEvent(HoverEvent.showText(
+                        Component.text("Run /wl add " + commandIdentifier, NamedTextColor.GREEN)));
+        Component removePending = Component.text("[REMOVE PENDING]", NamedTextColor.RED)
+                .clickEvent(ClickEvent.runCommand("/wl rpl " + commandIdentifier))
+                .hoverEvent(HoverEvent.showText(
+                        Component.text("Run /wl rpl " + commandIdentifier, NamedTextColor.RED)));
 
         Component message = Component.text()
-                .append(Component.text("[PendingWhitelist] ", NamedTextColor.RED))
+                .append(Component.text("[PendingWhitelist] ", NamedTextColor.GOLD))
                 .append(Component.text(displayName, NamedTextColor.YELLOW))
-                .append(Component.text(" attempted to join", NamedTextColor.GRAY))
+                .append(Component.text(" is waiting for whitelist review", NamedTextColor.GRAY))
                 .append(Component.newline())
-                .append(Component.text("Approve: ", NamedTextColor.GRAY))
-                .append(approve)
+                .append(Component.text("Actions: ", NamedTextColor.GRAY))
+                .append(add)
                 .append(Component.text("  "))
-                .append(Component.text("Deny: ", NamedTextColor.GRAY))
-                .append(deny)
+                .append(removePending)
                 .build();
 
         for (org.bukkit.entity.Player player : Bukkit.getOnlinePlayers()) {
@@ -263,6 +264,10 @@ public class PendingStorage {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private boolean isPlayerName(String value) {
+        return value != null && value.matches("[A-Za-z0-9_]{3,16}");
     }
 
     private List<PendingEntry> enrichEntriesWithResolvedNames(List<PendingEntry> entries) {
@@ -366,15 +371,49 @@ public class PendingStorage {
     }
 
     public boolean addToWhitelist(String identifier) {
+        String normalizedIdentifier = normalizeIdentifier(identifier);
+        PendingEntry entry = findMatchingEntry(normalizedIdentifier, null);
         OfflinePlayer offlinePlayer = resolveOfflinePlayer(identifier);
         if (offlinePlayer == null) {
             return false;
         }
         if (offlinePlayer.isWhitelisted()) {
+            repairWhitelistedName(entry, offlinePlayer);
             return false;
         }
         offlinePlayer.setWhitelisted(true);
         return true;
+    }
+
+    private void repairWhitelistedName(PendingEntry entry, OfflinePlayer offlinePlayer) {
+        if (entry == null || !isPlayerName(entry.name())) {
+            return;
+        }
+
+        OfflinePlayer namedPlayer = Bukkit.getOfflinePlayer(entry.name());
+        if (!namedPlayer.getUniqueId().equals(offlinePlayer.getUniqueId())) {
+            return;
+        }
+
+        if (!hasWhitelistedNameMismatch(namedPlayer.getUniqueId(), entry.name())) {
+            return;
+        }
+
+        offlinePlayer.setWhitelisted(false);
+        namedPlayer.setWhitelisted(true);
+    }
+
+    private boolean hasWhitelistedNameMismatch(UUID uuid, String expectedName) {
+        for (OfflinePlayer whitelistedPlayer : Bukkit.getWhitelistedPlayers()) {
+            if (!whitelistedPlayer.getUniqueId().equals(uuid)) {
+                continue;
+            }
+
+            String savedName = normalizeIdentifier(whitelistedPlayer.getName());
+            return savedName == null || !savedName.equalsIgnoreCase(expectedName);
+        }
+
+        return false;
     }
 
     private OfflinePlayer resolveOfflinePlayer(String identifier) {
@@ -385,6 +424,13 @@ public class PendingStorage {
         String trimmed = identifier.trim();
 
         PendingEntry entry = findMatchingEntry(trimmed, null);
+        if (entry != null && isPlayerName(entry.name())) {
+            OfflinePlayer namedPlayer = Bukkit.getOfflinePlayer(entry.name());
+            if (entry.uuid() == null || entry.uuid().isBlank()
+                    || entry.uuid().equalsIgnoreCase(namedPlayer.getUniqueId().toString())) {
+                return namedPlayer;
+            }
+        }
         if (entry != null && entry.uuid() != null && !entry.uuid().isBlank()) {
             try {
                 return Bukkit.getOfflinePlayer(UUID.fromString(entry.uuid()));

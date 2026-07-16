@@ -1,27 +1,26 @@
 ---
 name: Bug report
-about: Create a report to help us improve
+about: Report a reproducible problem
 labels: bug
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+## Description
 
-**To Reproduce**
-Steps to reproduce the behavior:
+Describe the bug clearly.
 
-1. Go to '...'
-2. Do '...'
-3. See error
+## Steps To Reproduce
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+1. Run command or action:
+2. Expected result:
+3. Actual result:
 
-**Server information (please complete the following information):**
+## Server Details
 
-- Plugin version:
-- Server implementation (Paper/Purpur) and version:
+- PendingWhitelist version:
+- Server software and version:
 - Java version:
+- Online mode:
 
-**Additional context**
-Add any other context about the problem here.
+## Relevant Files Or Logs
+
+Paste relevant console logs, `pending.json`, or `whitelist.json` snippets. Remove private data before posting.

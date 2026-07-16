@@ -1,11 +1,17 @@
 ---
 name: Feature request
-about: Suggest an idea for this project
+about: Suggest an improvement
 labels: enhancement
 ---
 
-**Is your feature request related to a problem? Please describe.**
+## Problem
 
-**Describe the solution you'd like**
+What problem would this solve?
 
-**Additional context**
+## Proposal
+
+Describe the behavior you want.
+
+## Alternatives
+
+Describe any workaround or alternative you considered.

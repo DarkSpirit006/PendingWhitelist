@@ -1,18 +1,32 @@
 # Contributing
 
-Thanks for your interest in contributing to PendingWhitelist. We welcome bug reports, improvements, and pull requests.
+Thanks for helping improve PendingWhitelist.
 
-How to contribute
+## Before Opening An Issue
 
-- Search existing issues before opening a new one.
-- For bug reports, include server version, plugin version, and steps to reproduce.
-- Fork the repository and create a feature branch for your changes.
-- Keep changes focused and add tests where appropriate.
+- Search existing issues first.
+- For bugs, include the plugin version, server version, Java version, and reproduction steps.
+- Include relevant logs or sanitized `pending.json` / `whitelist.json` snippets when storage behavior is involved.
 
-Pull request checklist
+## Development
 
-- [ ] My changes compile and pass the build (`./gradlew clean build`).
-- [ ] I updated documentation where necessary.
-- [ ] I followed the project's code style and conventions.
+1. Fork the repository.
+2. Create a focused feature or fix branch.
+3. Build locally before opening a pull request.
 
-Maintainers will review and provide feedback.
+```powershell
+.\gradlew.bat clean build
+```
+
+On Linux or macOS:
+
+```bash
+./gradlew clean build
+```
+
+## Pull Request Checklist
+
+- [ ] The project builds successfully.
+- [ ] Documentation was updated for behavior changes.
+- [ ] Command usage, tab completion, and `plugin.yml` stay in sync.
+- [ ] The change is focused and avoids unrelated formatting churn.
