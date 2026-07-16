@@ -19,8 +19,12 @@ public class PurgeTask extends BukkitRunnable {
         if (!plugin.isPurgeEnabled()) {
             return;
         }
+
         long cutoffMillis = System.currentTimeMillis() - (plugin.getPurgeDays() * 24L * 60L * 60L * 1000L);
-        storage.purgeExpiredEntries(cutoffMillis);
-        plugin.getLogger().info("Removed expired pending whitelist entries.");
+        int removed = storage.purgeExpiredEntries(cutoffMillis);
+
+        if (removed > 0) {
+            plugin.getLogger().info("Removed " + removed + " expired pending whitelist entries.");
+        }
     }
 }

@@ -1,67 +1,85 @@
 # PendingWhitelist
 
-Lightweight Paper/Purpur plugin that records players who attempted to join while the server whitelist is enabled and offers simple management commands.
-
-# PendingWhitelist
-
 ![Build](https://github.com/Dark_Spirit69/PendingWhitelist/actions/workflows/ci.yml/badge.svg)
+![Version](https://img.shields.io/badge/version-1.2.0-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-Lightweight Paper/Purpur plugin for Minecraft 26.2 that records players rejected by the server whitelist and provides simple management commands for administrators.
+PendingWhitelist is a lightweight Paper/Purpur plugin that records players who try to join while the server whitelist rejects them. Admins can review pending players, whitelist them, remove pending entries, and receive clickable in-game review actions.
 
-Summary
+## Features
 
-- Tracks players denied by whitelist and stores their username, attempt count, and timestamps in `plugins/PendingWhitelist/pending.json`.
-- Commands for listing and batch-whitelisting pending players.
-- Configurable pagination and automatic purge of stale entries.
+- Tracks pending whitelist attempts with UUID, username, attempt count, and timestamps.
+- Shows pending players newest first with configurable pagination.
+- Whitelists pending players while preserving the stored username in `whitelist.json`.
+- Sends clickable admin notifications for whitelist and remove-pending actions.
+- Supports batch commands for adding, removing, and clearing pending entries.
+- Automatically purges stale pending entries when enabled.
 
-Requirements
+## Requirements
 
 - Java 25
-- Paper/Purpur for Minecraft 26.2
+- Paper or Purpur compatible with Minecraft/Paper API `26.2`
 
-Quick build
-
-Windows (from project root):
-
-```powershell
-build-plugin.bat
-```
-
-Or use the Gradle wrapper (recommended once present):
+## Build
 
 ```powershell
 .\gradlew.bat clean build
 ```
 
-Result
+The plugin jar is written to:
 
-- The plugin jar is written to `build/libs/PendingWhitelist-1.0.0.jar` after a successful build.
+```text
+build/libs/PendingWhitelist-1.2.0.jar
+```
 
-Installation
+## Installation
 
 1. Stop your server.
-2. Copy the jar to the server `plugins/` folder.
-3. Start the server and verify the plugin created `plugins/PendingWhitelist/`.
+2. Place `PendingWhitelist-1.2.0.jar` in the server `plugins` folder.
+3. Start your server.
+4. Edit `plugins/PendingWhitelist/config.yml` if you want to change pagination or purge settings.
 
-Configuration
+## Commands
 
-- Edit `plugins/PendingWhitelist/config.yml` to change `page-size` or purge settings.
+| Command | Description |
+| --- | --- |
+| `/wl pl [page]` | Show pending players, newest first. |
+| `/wl list` | Show whitelisted players. |
+| `/wl add <identifier> [identifier ...]` | Whitelist pending players and remove their pending entries. |
+| `/wl remove <identifier> [identifier ...]` | Remove players from both the server whitelist and pending storage. |
+| `/wl rpl <identifier> [identifier ...]` | Remove players only from the pending list. |
+| `/wl reload` | Reload `config.yml`. |
 
-Commands
+`identifier` can be a stored username or UUID. When a pending username is available, PendingWhitelist prefers it for whitelist writes so `whitelist.json` keeps a readable player name.
 
-- `/wl list [page]` — list pending players (newest first)
-- `/wl add <username> [username ...]` — whitelist and remove pending entries
-- `/wl reload` — reload `config.yml` only
+## Configuration
 
-Contributing
+The default config is created at `plugins/PendingWhitelist/config.yml`:
 
-- See `CONTRIBUTING.md` for guidance on reporting issues and submitting pull requests.
+```yaml
+page-size: 10
 
-License
+purge:
+  enabled: true
+  days: 30
+```
 
-- MIT — see `LICENSE`.
+## Storage
 
-- This project intentionally stores plain usernames in `pending.json` (no UUIDs or IPs).
-- Do not commit local Gradle distributions or build artifacts — `.gitignore` already excludes them.
+Pending entries are stored in `plugins/PendingWhitelist/pending.json`. The file is kept in memory while the plugin is running and written asynchronously when entries change.
 
-License: MIT
+The server-owned `whitelist.json` remains managed by Bukkit/Paper. PendingWhitelist only calls the server whitelist API.
+
+## Documentation
+
+- [Usage guide](docs/usage.md)
+- [Configuration guide](docs/config.md)
+- [Changelog](CHANGELOG.md)
+
+## Contributing
+
+Bug reports, feature requests, and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

@@ -1,15 +1,14 @@
----
-name: Pull request
-about: Describe changes and link issues
----
+## Summary
 
-## Description
+Describe what changed and why.
 
-Please include a summary of the change and which issue is fixed. Include motivation and context.
+## Testing
+
+- [ ] `./gradlew clean build`
+- [ ] Tested on a Paper/Purpur server, if the change affects runtime behavior
 
 ## Checklist
 
-- [ ] My code follows the style guidelines of this project
-- [ ] I performed a self-review of my code
-- [ ] I updated the documentation as needed
-- [ ] My changes generate no new warnings
+- [ ] Documentation was updated if behavior changed
+- [ ] Command output and tab completion still match the documented commands
+- [ ] No unrelated files or generated artifacts were committed

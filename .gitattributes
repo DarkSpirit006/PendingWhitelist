@@ -1,6 +1,8 @@
 *.java text eol=lf
 *.yml text eol=lf
-*.md text
+*.md text eol=lf
 *.gradle text eol=lf
 *.properties text eol=lf
+gradlew text eol=lf
+*.bat text eol=crlf
 build/libs/* binary
