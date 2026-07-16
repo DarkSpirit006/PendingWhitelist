@@ -23,7 +23,7 @@ PendingWhitelist is a lightweight Paper/Purpur plugin that records players who t
 ## Build
 
 ```powershell
-.\gradlew.bat clean build
+.\gradlew.bat build
 ```
 
 The plugin jar is written to:

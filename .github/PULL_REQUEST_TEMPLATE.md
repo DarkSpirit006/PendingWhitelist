@@ -4,7 +4,7 @@ Describe what changed and why.
 
 ## Testing
 
-- [ ] `./gradlew clean build`
+- [ ] `./gradlew build`
 - [ ] Tested on a Paper/Purpur server, if the change affects runtime behavior
 
 ## Checklist

@@ -15,13 +15,13 @@ Thanks for helping improve PendingWhitelist.
 3. Build locally before opening a pull request.
 
 ```powershell
-.\gradlew.bat clean build
+.\gradlew.bat build
 ```
 
 On Linux or macOS:
 
 ```bash
-./gradlew clean build
+./gradlew build
 ```
 
 ## Pull Request Checklist
