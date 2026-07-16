@@ -5,6 +5,8 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerLoginEvent;
 
+import java.util.UUID;
+
 public class JoinListener implements Listener {
 
     private final PendingStorage pendingStorage;
@@ -20,10 +22,16 @@ public class JoinListener implements Listener {
         }
 
         String username = event.getPlayer().getName();
+        UUID uuid = event.getPlayer().getUniqueId();
+
+        if (username == null || username.isBlank()) {
+            username = event.getPlayer().getAddress() != null ? event.getPlayer().getAddress().getHostName() : null;
+        }
+
         if (username == null || username.isBlank()) {
             return;
         }
 
-        pendingStorage.recordAttempt(username);
+        pendingStorage.recordAttempt(username, uuid);
     }
 }

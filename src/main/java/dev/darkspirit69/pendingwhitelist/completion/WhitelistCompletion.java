@@ -20,15 +20,22 @@ public class WhitelistCompletion implements TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length <= 1) {
-            return List.of("list", "add", "reload");
+            return List.of("pl", "list", "add", "remove", "rpl", "reload");
         }
 
         String subcommand = args[0].toLowerCase();
-        if (!"add".equals(subcommand)) {
+        if (!"add".equals(subcommand) && !"remove".equals(subcommand) && !"rpl".equals(subcommand)) {
             return Collections.emptyList();
         }
 
-        List<String> allSuggestions = pendingStorage.getPendingUsernames();
+        List<String> allSuggestions = new ArrayList<>();
+        if ("add".equals(subcommand) || "rpl".equals(subcommand)) {
+            allSuggestions.addAll(pendingStorage.getPendingUsernames());
+        } else if ("remove".equals(subcommand)) {
+            allSuggestions.addAll(pendingStorage.getPendingUsernames());
+            allSuggestions.addAll(pendingStorage.getWhitelistedUsernames());
+        }
+
         List<String> result = new ArrayList<>();
         String current = args[args.length - 1].toLowerCase();
 
