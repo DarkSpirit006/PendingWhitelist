@@ -1,6 +1,6 @@
 # PendingWhitelist
 
-![Build](https://github.com/Dark_Spirit69/PendingWhitelist/actions/workflows/ci.yml/badge.svg)
+[![Build](https://github.com/DarkSpirit006/PendingWhitelist/actions/workflows/ci.yml/badge.svg)](https://github.com/DarkSpirit006/PendingWhitelist/actions/workflows/ci.yml)
 ![Version](https://img.shields.io/badge/version-1.2.0-blue)
 ![License](https://img.shields.io/badge/license-proprietary-red)
 
