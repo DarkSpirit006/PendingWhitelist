@@ -24,6 +24,12 @@ On Linux or macOS:
 ./gradlew build
 ```
 
+## Contribution Terms
+
+Only submit contributions that you wrote yourself or have the legal right to
+submit. By opening a pull request, you agree that your contribution may be
+included in this project under the repository's proprietary license.
+
 ## Pull Request Checklist
 
 - [ ] The project builds successfully.

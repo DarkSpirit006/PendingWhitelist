@@ -2,7 +2,7 @@
 
 ![Build](https://github.com/Dark_Spirit69/PendingWhitelist/actions/workflows/ci.yml/badge.svg)
 ![Version](https://img.shields.io/badge/version-1.2.0-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+![License](https://img.shields.io/badge/license-proprietary-red)
 
 PendingWhitelist is a lightweight Paper/Purpur plugin that records players who try to join while the server whitelist rejects them. Admins can review pending players, whitelist them, remove pending entries, and receive clickable in-game review actions.
 
@@ -78,8 +78,8 @@ The server-owned `whitelist.json` remains managed by Bukkit/Paper. PendingWhitel
 
 ## Contributing
 
-Bug reports, feature requests, and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+Bug reports and feature requests are welcome. Pull requests are reviewed at the maintainer's discretion and are subject to the project license. See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+Proprietary. All rights reserved. This project may not be copied, modified, distributed, hosted, sold, or otherwise used without prior written permission from the copyright holder. See [LICENSE](LICENSE).
