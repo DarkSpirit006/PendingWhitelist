@@ -13,7 +13,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly 'io.papermc.paper:paper-api:26.2.build.60-beta'
+    compileOnly 'io.papermc.paper:paper-api:26.2-rc-2.build.9-alpha'
     implementation 'com.google.code.gson:gson:2.13.0'
 }
 
