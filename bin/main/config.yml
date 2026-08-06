@@ -1,5 +1,0 @@
-page-size: 10
-
-purge:
-  enabled: true
-  days: 30

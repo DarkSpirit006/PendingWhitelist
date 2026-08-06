@@ -3,7 +3,9 @@ plugins {
 }
 
 group = 'dev.darkspirit69'
-version = '1.2.0'
+version = providers.gradleProperty('releaseVersion').getOrElse('1.2.0')
+
+description = 'Tracks players rejected by a server whitelist and provides in-game review commands.'
 
 repositories {
     mavenCentral()
@@ -25,6 +27,17 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
 
+tasks.processResources {
+    filesMatching('plugin.yml') {
+        expand(version: project.version)
+    }
+}
+
 tasks.jar {
     archiveBaseName.set('PendingWhitelist')
+    manifest {
+        attributes('Implementation-Title': project.name,
+                'Implementation-Version': project.version,
+                'Implementation-Vendor': 'Dark_Spirit69')
+    }
 }

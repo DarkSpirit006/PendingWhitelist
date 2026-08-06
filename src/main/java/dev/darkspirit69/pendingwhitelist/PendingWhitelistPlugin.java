@@ -3,6 +3,7 @@ package dev.darkspirit69.pendingwhitelist;
 import dev.darkspirit69.pendingwhitelist.command.WlCommand;
 import dev.darkspirit69.pendingwhitelist.listener.JoinListener;
 import dev.darkspirit69.pendingwhitelist.storage.PendingStorage;
+import dev.darkspirit69.pendingwhitelist.update.PluginUpdater;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class PendingWhitelistPlugin extends JavaPlugin {
@@ -23,6 +24,10 @@ public final class PendingWhitelistPlugin extends JavaPlugin {
         getCommand("wl").setTabCompleter(wlCommand);
 
         pendingStorage.schedulePurgeCheck();
+
+        if (isUpdateEnabled()) {
+            new PluginUpdater(this).scheduleChecks();
+        }
     }
 
     @Override
@@ -44,5 +49,13 @@ public final class PendingWhitelistPlugin extends JavaPlugin {
 
     public int getPurgeDays() {
         return Math.max(1, getConfig().getInt("purge.days", 30));
+    }
+
+    public boolean isUpdateEnabled() {
+        return getConfig().getBoolean("update.enabled", true);
+    }
+
+    public int getUpdateCheckIntervalHours() {
+        return Math.max(1, getConfig().getInt("update.check-interval-hours", 24));
     }
 }

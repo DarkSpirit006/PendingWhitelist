@@ -27,8 +27,7 @@ On Linux or macOS:
 ## Contribution Terms
 
 Only submit contributions that you wrote yourself or have the legal right to
-submit. By opening a pull request, you agree that your contribution may be
-included in this project under the repository's proprietary license.
+submit. Contributions are made available under the [MIT License](LICENSE).
 
 ## Pull Request Checklist
 

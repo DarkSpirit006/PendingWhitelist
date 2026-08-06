@@ -1,60 +1,60 @@
 # PendingWhitelist
 
 [![Build](https://github.com/DarkSpirit006/PendingWhitelist/actions/workflows/ci.yml/badge.svg)](https://github.com/DarkSpirit006/PendingWhitelist/actions/workflows/ci.yml)
-![Version](https://img.shields.io/badge/version-1.2.0-blue)
-![License](https://img.shields.io/badge/license-proprietary-red)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/DarkSpirit006/PendingWhitelist)](https://github.com/DarkSpirit006/PendingWhitelist/releases/latest)
 
-PendingWhitelist is a lightweight Paper/Purpur plugin that records players who try to join while the server whitelist rejects them. Admins can review pending players, whitelist them, remove pending entries, and receive clickable in-game review actions.
+PendingWhitelist keeps track of players who are turned away by a Paper or Purpur server whitelist. Staff can review those players in game, whitelist them, or clear their requests without editing JSON files by hand.
 
-## Features
+## What it does
 
-- Tracks pending whitelist attempts with UUID, username, attempt count, and timestamps.
-- Shows pending players newest first with configurable pagination.
-- Whitelists pending players while preserving the stored username in `whitelist.json`.
-- Sends clickable admin notifications for whitelist and remove-pending actions.
-- Supports batch commands for adding, removing, and clearing pending entries.
-- Automatically purges stale pending entries when enabled.
+- Records a player's UUID, name, attempt count, and most recent attempt.
+- Shows pending requests newest first with configurable pagination.
+- Provides clickable staff actions for approving or dismissing requests.
+- Supports batch operations for approving, removing, and clearing entries.
+- Purges old requests automatically when enabled.
 
 ## Requirements
 
 - Java 25
-- Paper or Purpur compatible with Minecraft/Paper API `26.2`
+- Paper or Purpur with Paper API `26.2`
 
 ## Build
+
+Run the Gradle wrapper from the project directory:
 
 ```powershell
 .\gradlew.bat build
 ```
 
-The plugin jar is written to:
+The finished plugin is available at `build/libs/PendingWhitelist-<version>.jar`.
 
-```text
-build/libs/PendingWhitelist-1.2.0.jar
-```
+Pushes to `main` are released automatically. The release workflow increments the
+patch version from the latest `v*` tag, creates a Git tag, and attaches the built
+plugin JAR to the GitHub release. Release notes are generated from the commits
+since the previous release.
 
-## Installation
+## Install
 
-1. Stop your server.
-2. Place `PendingWhitelist-1.2.0.jar` in the server `plugins` folder.
-3. Start your server.
-4. Edit `plugins/PendingWhitelist/config.yml` if you want to change pagination or purge settings.
+1. Stop the server.
+2. Copy the plugin JAR into the server's `plugins` directory.
+3. Start the server once to create the configuration file.
+4. Adjust `plugins/PendingWhitelist/config.yml` if needed.
 
 ## Commands
 
 | Command | Description |
 | --- | --- |
-| `/wl pl [page]` | Show pending players, newest first. |
-| `/wl list` | Show whitelisted players. |
-| `/wl add <identifier> [identifier ...]` | Whitelist pending players and remove their pending entries. |
-| `/wl remove <identifier> [identifier ...]` | Remove players from both the server whitelist and pending storage. |
-| `/wl rpl <identifier> [identifier ...]` | Remove players only from the pending list. |
+| `/wl pl [page]` | List pending players, newest first. |
+| `/wl list` | List players on the server whitelist. |
+| `/wl add <identifier> [identifier ...]` | Whitelist players and clear their pending requests. |
+| `/wl remove <identifier> [identifier ...]` | Remove players from the server whitelist and pending storage. |
+| `/wl rpl <identifier> [identifier ...]` | Clear pending requests without changing the server whitelist. |
 | `/wl reload` | Reload `config.yml`. |
 
-`identifier` can be a stored username or UUID. When a pending username is available, PendingWhitelist prefers it for whitelist writes so `whitelist.json` keeps a readable player name.
+All commands require the `pendingwhitelist.admin` permission, which defaults to server operators. An identifier can be either the stored player name or UUID.
 
 ## Configuration
-
-The default config is created at `plugins/PendingWhitelist/config.yml`:
 
 ```yaml
 page-size: 10
@@ -64,22 +64,23 @@ purge:
   days: 30
 ```
 
-## Storage
+See the [configuration guide](docs/config.md) for details.
 
-Pending entries are stored in `plugins/PendingWhitelist/pending.json`. The file is kept in memory while the plugin is running and written asynchronously when entries change.
+## Data and storage
 
-The server-owned `whitelist.json` remains managed by Bukkit/Paper. PendingWhitelist only calls the server whitelist API.
+Pending requests are stored in `plugins/PendingWhitelist/pending.json`. The plugin keeps entries in memory and writes changes asynchronously. The server's `whitelist.json` remains managed by Paper; PendingWhitelist uses the server whitelist API rather than editing that file directly.
+
+## Automatic updates
+
+PendingWhitelist checks the official GitHub releases page once a day by default. When a newer JAR is available, it downloads the file to `plugins/update`. Paper installs staged plugin updates on the next server restart. Set `update.enabled` to `false` in `config.yml` to manage updates manually.
 
 ## Documentation
 
 - [Usage guide](docs/usage.md)
 - [Configuration guide](docs/config.md)
 - [Changelog](CHANGELOG.md)
-
-## Contributing
-
-Bug reports and feature requests are welcome. Pull requests are reviewed at the maintainer's discretion and are subject to the project license. See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+- [Contributing](CONTRIBUTING.md)
 
 ## License
 
-Proprietary. All rights reserved. This project may not be copied, modified, distributed, hosted, sold, or otherwise used without prior written permission from the copyright holder. See [LICENSE](LICENSE).
+PendingWhitelist is distributed under the [MIT License](LICENSE).
