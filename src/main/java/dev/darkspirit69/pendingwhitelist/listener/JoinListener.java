@@ -42,15 +42,24 @@ public class JoinListener implements Listener {
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
-        String username = plugin.consumeTemporaryUuidWhitelist(event.getPlayer().getUniqueId());
+        UUID uuid = event.getPlayer().getUniqueId();
+        String username = plugin.consumeTemporaryUuidWhitelist(uuid);
         if (username == null) {
             return;
         }
 
-        UUID uuid = event.getPlayer().getUniqueId();
-        Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "whitelist remove " + uuid);
-        Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "whitelist add " + username);
-        plugin.getLogger().info("Converted the temporary UUID whitelist entry for " + username
-                + " to a username entry after the player joined.");
+        // Run after the join has completed. Geyser may not have finished
+        // publishing the player's profile when PlayerJoinEvent is delivered.
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            boolean removed = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "whitelist remove " + uuid);
+            boolean added = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "whitelist add " + username);
+            if (removed && added) {
+                plugin.getLogger().info("Converted the temporary UUID whitelist entry for " + username
+                        + " to a username entry after the player joined.");
+            } else {
+                plugin.getLogger().warning("Could not convert the temporary UUID whitelist entry for " + username
+                        + " (remove=" + removed + ", add=" + added + ").");
+            }
+        });
     }
 }
