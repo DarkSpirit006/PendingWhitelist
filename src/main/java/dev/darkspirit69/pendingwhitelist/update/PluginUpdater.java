@@ -16,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
+import java.util.function.Consumer;
 
 public final class PluginUpdater {
 
@@ -38,6 +39,47 @@ public final class PluginUpdater {
         plugin.getLogger().info("Automatic update checks enabled. Current version: v"
                 + plugin.getDescription().getVersion() + ".");
         Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::checkForUpdate, 20L * 20L, intervalTicks);
+    }
+
+    public void checkNow() {
+        plugin.getLogger().info("Manual update check requested by an administrator.");
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, this::checkForUpdate);
+    }
+
+    public void fetchLatestVersion(Consumer<String> resultConsumer) {
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            String latestVersion = null;
+            try {
+                HttpRequest request = HttpRequest.newBuilder(URI.create(RELEASES_URL))
+                        .timeout(Duration.ofSeconds(20))
+                        .header("Accept", "application/vnd.github+json")
+                        .header("X-GitHub-Api-Version", "2022-11-28")
+                        .header("User-Agent", "PendingWhitelist-Plugin-Updater")
+                        .GET()
+                        .build();
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() == 200) {
+                    JsonObject release = JsonParser.parseString(response.body()).getAsJsonObject();
+                    latestVersion = normalizeVersion(getString(release, "tag_name"));
+                    if (latestVersion != null) {
+                        plugin.getLogger().info("Latest GitHub version: v" + latestVersion + ".");
+                    }
+                } else {
+                    plugin.getLogger().warning("Could not fetch the latest version (GitHub returned HTTP "
+                            + response.statusCode() + ").");
+                }
+            } catch (IOException ex) {
+                plugin.getLogger().warning("Could not fetch the latest PendingWhitelist version: " + ex.getMessage());
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                plugin.getLogger().warning("Latest version lookup was interrupted.");
+            } catch (RuntimeException ex) {
+                plugin.getLogger().warning("GitHub returned an unexpected version response: " + ex.getMessage());
+            }
+
+            String version = latestVersion;
+            Bukkit.getScheduler().runTask(plugin, () -> resultConsumer.accept(version));
+        });
     }
 
     private void checkForUpdate() {

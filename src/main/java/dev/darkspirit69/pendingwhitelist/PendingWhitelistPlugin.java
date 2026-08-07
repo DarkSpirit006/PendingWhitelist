@@ -6,27 +6,34 @@ import dev.darkspirit69.pendingwhitelist.storage.PendingStorage;
 import dev.darkspirit69.pendingwhitelist.update.PluginUpdater;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 public final class PendingWhitelistPlugin extends JavaPlugin {
 
     private PendingStorage pendingStorage;
     private WlCommand wlCommand;
+    private PluginUpdater pluginUpdater;
+    private final Map<UUID, String> temporaryWhitelistNames = new ConcurrentHashMap<>();
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
 
         this.pendingStorage = new PendingStorage(this);
-        this.wlCommand = new WlCommand(this, pendingStorage);
+        this.pluginUpdater = new PluginUpdater(this);
+        this.wlCommand = new WlCommand(this, pendingStorage, pluginUpdater);
 
         pendingStorage.loadFromDisk();
-        getServer().getPluginManager().registerEvents(new JoinListener(pendingStorage), this);
+        getServer().getPluginManager().registerEvents(new JoinListener(this, pendingStorage), this);
         getCommand("wl").setExecutor(wlCommand);
         getCommand("wl").setTabCompleter(wlCommand);
 
         pendingStorage.schedulePurgeCheck();
 
         if (isUpdateEnabled()) {
-            new PluginUpdater(this).scheduleChecks();
+            pluginUpdater.scheduleChecks();
         } else {
             getLogger().info("Automatic update checks are disabled in config.yml.");
         }
@@ -39,6 +46,21 @@ public final class PendingWhitelistPlugin extends JavaPlugin {
 
     public PendingStorage getPendingStorage() {
         return pendingStorage;
+    }
+
+    public String getInstalledVersion() {
+        return getDescription().getVersion();
+    }
+
+    public void trackTemporaryUuidWhitelist(UUID uuid, String username) {
+        if (uuid != null && username != null && !username.isBlank()) {
+            temporaryWhitelistNames.put(uuid, username);
+            getLogger().info("Temporarily whitelisted " + username + " by UUID for Geyser compatibility.");
+        }
+    }
+
+    public String consumeTemporaryUuidWhitelist(UUID uuid) {
+        return temporaryWhitelistNames.remove(uuid);
     }
 
     public int getConfiguredPageSize() {

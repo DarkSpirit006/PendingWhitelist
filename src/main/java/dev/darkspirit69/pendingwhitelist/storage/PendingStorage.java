@@ -373,6 +373,18 @@ public class PendingStorage {
     public boolean addToWhitelist(String identifier) {
         String normalizedIdentifier = normalizeIdentifier(identifier);
         PendingEntry entry = findMatchingEntry(normalizedIdentifier, null);
+        if (entry != null && entry.uuid() != null && !entry.uuid().isBlank()) {
+            try {
+                OfflinePlayer uuidPlayer = Bukkit.getOfflinePlayer(UUID.fromString(entry.uuid()));
+                if (uuidPlayer.isWhitelisted()) {
+                    return false;
+                }
+                uuidPlayer.setWhitelisted(true);
+                return true;
+            } catch (IllegalArgumentException ignored) {
+                // Fall through to normal username/identifier resolution.
+            }
+        }
         OfflinePlayer offlinePlayer = resolveOfflinePlayer(identifier);
         if (offlinePlayer == null) {
             return false;
