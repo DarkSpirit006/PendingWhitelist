@@ -22,7 +22,7 @@ import java.util.Locale;
 
 public class WlCommand implements CommandExecutor, TabCompleter {
 
-    private static final String ROOT_USAGE = "&cUsage: /wl <pl|list|add|remove|rpl|reload|update|version>";
+    private static final String ROOT_USAGE = "&cUsage: /wl <pl|list|add|remove|rpl|reload|version>";
 
     private final PendingWhitelistPlugin plugin;
     private final PendingStorage pendingStorage;
@@ -56,7 +56,6 @@ public class WlCommand implements CommandExecutor, TabCompleter {
             case "remove" -> handleRemove(sender, args);
             case "rpl" -> handleRemovePendingOnly(sender, args);
             case "reload" -> handleReload(sender, args);
-            case "update" -> handleUpdate(sender, args);
             case "version" -> handleVersion(sender, args);
             default -> {
                 TextUtil.send(sender, "&cUnknown subcommand.");
@@ -75,15 +74,10 @@ public class WlCommand implements CommandExecutor, TabCompleter {
         TextUtil.send(sender, "&e/wl remove <name...> &7- Remove from whitelist and pending");
         TextUtil.send(sender, "&e/wl rpl <name...> &7- Remove only from pending");
         TextUtil.send(sender, "&e/wl reload &7- Reload the config");
-        TextUtil.send(sender, "&e/wl update &7- Check for and download updates");
         TextUtil.send(sender, "&e/wl version &7- Show the installed version");
     }
 
-    private boolean handleUpdate(CommandSender sender, String[] args) {
-        if (args.length != 1) {
-            TextUtil.send(sender, "&cUsage: /wl update");
-            return true;
-        }
+    private boolean handleUpdate(CommandSender sender) {
         if (!plugin.isUpdateEnabled()) {
             TextUtil.send(sender, "&eAutomatic updates are disabled in config.yml.");
             return true;
@@ -94,6 +88,9 @@ public class WlCommand implements CommandExecutor, TabCompleter {
     }
 
     private boolean handleVersion(CommandSender sender, String[] args) {
+        if (args.length == 2 && "update".equalsIgnoreCase(args[1])) {
+            return handleUpdate(sender);
+        }
         if (args.length != 1) {
             TextUtil.send(sender, "&cUsage: /wl version");
             return true;
@@ -111,7 +108,7 @@ public class WlCommand implements CommandExecutor, TabCompleter {
             TextUtil.send(sender, "&7Latest available: &ev" + latestVersion);
             if (updateAvailable) {
                 Component updateButton = Component.text("[Update]", NamedTextColor.GREEN)
-                        .clickEvent(ClickEvent.runCommand("/wl update"))
+                        .clickEvent(ClickEvent.runCommand("/wl version update"))
                         .hoverEvent(HoverEvent.showText(Component.text("Click to download the latest version")));
                 sender.sendMessage(Component.text(" ")
                         .append(updateButton));

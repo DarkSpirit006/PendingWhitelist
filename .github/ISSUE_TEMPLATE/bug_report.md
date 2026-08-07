@@ -24,4 +24,4 @@ Describe the bug clearly.
 
 ## Relevant Files Or Logs
 
-Paste relevant server-panel/console logs, `pending.json`, or `whitelist.json` snippets. For update problems, include the `/wl version` and `/wl update` output. Remove private data before posting.
+Paste relevant server-panel/console logs, `pending.json`, or `whitelist.json` snippets. For update problems, include the `/wl version` output and the server-panel log. Remove private data before posting.

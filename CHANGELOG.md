@@ -6,7 +6,7 @@ All notable changes to PendingWhitelist are documented here.
 
 ### Added
 
-- Added `/wl update` for an immediate update check and automatic download.
+- Added automatic update checks and downloads through `/wl version`.
 - Added `/wl version` with the installed version, latest release, and clickable update button.
 - Added Geyser compatibility by converting temporary UUID whitelist entries to username entries after join.
 - Expanded `/wl add` to support arbitrary usernames and UUIDs as a `/whitelist add` replacement.

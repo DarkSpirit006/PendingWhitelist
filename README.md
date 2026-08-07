@@ -54,7 +54,6 @@ Manual releases can still be started with `workflow_dispatch`.
 | `/wl remove <identifier> [identifier ...]` | Remove players from the server whitelist and pending storage. |
 | `/wl rpl <identifier> [identifier ...]` | Clear pending requests without changing the server whitelist. |
 | `/wl reload` | Reload `config.yml`. |
-| `/wl update` | Immediately check GitHub and download a newer release. Results are logged in the server panel. |
 | `/wl version` | Show the installed version, latest available version, and a clickable update button when applicable. |
 
 All commands require the `pendingwhitelist.admin` permission, which defaults to server operators. An identifier can be either the stored player name or UUID.
@@ -81,7 +80,7 @@ Pending requests are stored in `plugins/PendingWhitelist/pending.json`. The plug
 
 ## Automatic updates
 
-PendingWhitelist checks the official GitHub releases page once a day by default. Startup checks, manual `/wl update` checks, current-version results, download results, and errors are written to the server panel. When a newer JAR is available, it downloads the file to `plugins/update`. Paper installs staged plugin updates on the next server restart. Set `update.enabled` to `false` in `config.yml` to manage updates manually.
+PendingWhitelist checks the official GitHub releases page once a day by default. Startup checks, version checks, current-version results, download results, and errors are written to the server panel. When a newer JAR is available, it downloads the file to `plugins/update`. Paper installs staged plugin updates on the next server restart. Set `update.enabled` to `false` in `config.yml` to manage updates manually.
 
 ## Documentation
 

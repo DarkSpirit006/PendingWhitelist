@@ -19,7 +19,6 @@ public class WhitelistCompletion implements TabCompleter {
             "remove",
             "rpl",
             "reload",
-            "update",
             "version");
 
     private final PendingStorage pendingStorage;

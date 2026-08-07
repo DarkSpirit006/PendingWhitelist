@@ -41,8 +41,7 @@ Use `rpl` when you want to reject or ignore a pending request without touching t
 ## Version and Updates
 
 - `/wl version` - shows the installed version and checks GitHub for the latest version.
-- When an update is available, click the `[Update]` button to run `/wl update`.
-- `/wl update` - starts an immediate update check. The result is shown in the server panel.
+- When an update is available, click the `[Update]` button to start the download. The result is shown in the server panel.
 - Updates are staged in `plugins/update` and installed on the next restart.
 
 ## Notes
