@@ -27,6 +27,8 @@ public final class PendingWhitelistPlugin extends JavaPlugin {
 
         if (isUpdateEnabled()) {
             new PluginUpdater(this).scheduleChecks();
+        } else {
+            getLogger().info("Automatic update checks are disabled in config.yml.");
         }
     }
 

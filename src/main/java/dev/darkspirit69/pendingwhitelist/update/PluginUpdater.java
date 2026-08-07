@@ -35,10 +35,14 @@ public final class PluginUpdater {
 
     public void scheduleChecks() {
         long intervalTicks = plugin.getUpdateCheckIntervalHours() * 60L * 60L * 20L;
+        plugin.getLogger().info("Automatic update checks enabled. Current version: v"
+                + plugin.getDescription().getVersion() + ".");
         Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::checkForUpdate, 20L * 20L, intervalTicks);
     }
 
     private void checkForUpdate() {
+        String currentVersion = plugin.getDescription().getVersion();
+        plugin.getLogger().info("Checking GitHub for a newer PendingWhitelist version...");
         HttpRequest request = HttpRequest.newBuilder(URI.create(RELEASES_URL))
                 .timeout(Duration.ofSeconds(20))
                 .header("Accept", "application/vnd.github+json")
@@ -58,10 +62,18 @@ public final class PluginUpdater {
             JsonObject release = JsonParser.parseString(response.body()).getAsJsonObject();
             String tagName = getString(release, "tag_name");
             String latestVersion = normalizeVersion(tagName);
-            if (latestVersion == null || !isNewer(latestVersion, plugin.getDescription().getVersion())) {
+            if (latestVersion == null) {
+                plugin.getLogger().warning("GitHub's latest release has an invalid version tag: " + tagName);
+                return;
+            }
+            if (!isNewer(latestVersion, currentVersion)) {
+                plugin.getLogger().info("PendingWhitelist is up to date (v" + currentVersion
+                        + "; latest release: v" + latestVersion + ").");
                 return;
             }
 
+            plugin.getLogger().info("New PendingWhitelist version found: v" + latestVersion
+                    + " (installed: v" + currentVersion + "). Downloading it automatically...");
             String assetUrl = findPluginAsset(release, latestVersion);
             if (assetUrl == null) {
                 plugin.getLogger().warning("Release v" + latestVersion + " does not contain a plugin JAR.");
@@ -73,6 +85,7 @@ public final class PluginUpdater {
             plugin.getLogger().warning("Could not check for PendingWhitelist updates: " + ex.getMessage());
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
+            plugin.getLogger().warning("PendingWhitelist update check was interrupted.");
         } catch (RuntimeException ex) {
             plugin.getLogger().warning("GitHub returned an unexpected update response: " + ex.getMessage());
         }
@@ -115,17 +128,9 @@ public final class PluginUpdater {
             }
             plugin.getLogger().info("PendingWhitelist v" + version
                     + " downloaded. It will be installed when the server restarts.");
-            notifyOperators(version);
         } finally {
             Files.deleteIfExists(temporaryFile);
         }
-    }
-
-    private void notifyOperators(String version) {
-        Bukkit.getScheduler().runTask(plugin, () -> Bukkit.getOnlinePlayers().stream()
-                .filter(player -> player.isOp() || player.hasPermission("pendingwhitelist.admin"))
-                .forEach(player -> player.sendMessage("§6[PendingWhitelist] §eVersion " + version
-                        + " is ready. Restart the server to install it.")));
     }
 
     private String findPluginAsset(JsonObject release, String version) {
