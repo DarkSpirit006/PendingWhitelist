@@ -320,12 +320,12 @@ public class PendingStorage {
     }
 
     public boolean remove(String identifier) {
-        boolean changed = false;
         String normalizedIdentifier = normalizeIdentifier(identifier);
         if (normalizedIdentifier == null) {
             return false;
         }
 
+        boolean changed = false;
         List<PendingEntry> matches = new ArrayList<>();
         for (PendingEntry entry : pending) {
             if (entry.matchesIdentifier(normalizedIdentifier)) {
@@ -337,16 +337,51 @@ public class PendingStorage {
             changed = true;
         }
 
-        OfflinePlayer offlinePlayer = resolveOfflinePlayer(normalizedIdentifier);
-        if (offlinePlayer != null && offlinePlayer.isWhitelisted()) {
-            offlinePlayer.setWhitelisted(false);
-            changed = true;
+        // A Geyser/Floodgate player can have a whitelist entry under its Bedrock
+        // UUID while the command is given its username (or vice versa). Remove
+        // every matching entry instead of relying on one OfflinePlayer lookup.
+        List<OfflinePlayer> whitelistMatches = new ArrayList<>();
+        PendingEntry pendingMatch = matches.isEmpty() ? findMatchingEntry(normalizedIdentifier, null) : matches.get(0);
+        UUID pendingUuid = pendingMatch != null ? parseUuid(pendingMatch.uuid()) : null;
+        UUID identifierUuid = parseUuid(normalizedIdentifier);
+        for (OfflinePlayer whitelistedPlayer : Bukkit.getWhitelistedPlayers()) {
+            String whitelistedName = normalizeIdentifier(whitelistedPlayer.getName());
+            boolean uuidMatches = identifierUuid != null && identifierUuid.equals(whitelistedPlayer.getUniqueId());
+            boolean pendingUuidMatches = pendingUuid != null && pendingUuid.equals(whitelistedPlayer.getUniqueId());
+            boolean nameMatches = whitelistedName != null && whitelistedName.equalsIgnoreCase(normalizedIdentifier);
+            if (uuidMatches || pendingUuidMatches || nameMatches) {
+                whitelistMatches.add(whitelistedPlayer);
+            }
+        }
+
+        // Include the normal lookup as a fallback for servers whose API does
+        // not expose a useful saved name in getWhitelistedPlayers().
+        OfflinePlayer resolved = resolveOfflinePlayer(normalizedIdentifier);
+        if (resolved != null && resolved.isWhitelisted() && !whitelistMatches.contains(resolved)) {
+            whitelistMatches.add(resolved);
+        }
+        for (OfflinePlayer whitelistedPlayer : whitelistMatches) {
+            if (whitelistedPlayer.isWhitelisted()) {
+                whitelistedPlayer.setWhitelisted(false);
+                changed = true;
+            }
         }
 
         if (changed) {
             scheduleSave();
         }
         return changed;
+    }
+
+    private UUID parseUuid(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
     }
 
     public boolean removePendingOnly(String identifier) {
