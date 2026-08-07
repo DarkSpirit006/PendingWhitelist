@@ -34,4 +34,5 @@ submit. Contributions are made available under the [MIT License](LICENSE).
 - [ ] The project builds successfully.
 - [ ] Documentation was updated for behavior changes.
 - [ ] Command usage, tab completion, and `plugin.yml` stay in sync.
+- [ ] Update behavior, Geyser behavior, and server-panel logging are documented when affected.
 - [ ] The change is focused and avoids unrelated formatting churn.

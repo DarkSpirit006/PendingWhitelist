@@ -13,6 +13,7 @@ gradle-*/
 gradle-*-bin.zip
 *.keystore
 local.properties
+/modrinth-description.md
 /.DS_Store
 /.env
 /.settings/

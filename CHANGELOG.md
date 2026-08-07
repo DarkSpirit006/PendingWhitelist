@@ -2,6 +2,20 @@
 
 All notable changes to PendingWhitelist are documented here.
 
+## [Unreleased]
+
+### Added
+
+- Added `/wl update` for an immediate update check and automatic download.
+- Added `/wl version` with the installed version, latest release, and clickable update button.
+- Added Geyser compatibility by converting temporary UUID whitelist entries to username entries after join.
+- Expanded `/wl add` to support arbitrary usernames and UUIDs as a `/whitelist add` replacement.
+- Added server-panel logging for update checks and results.
+
+### Changed
+
+- Automatic releases now run only when plugin source, resources, or build files change.
+
 ## [1.2.0] - 2026-07-16
 
 ### Added

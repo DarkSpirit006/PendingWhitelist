@@ -20,7 +20,8 @@ Describe the bug clearly.
 - Server software and version:
 - Java version:
 - Online mode:
+- Geyser/Floodgate installed (if applicable):
 
 ## Relevant Files Or Logs
 
-Paste relevant console logs, `pending.json`, or `whitelist.json` snippets. Remove private data before posting.
+Paste relevant server-panel/console logs, `pending.json`, or `whitelist.json` snippets. For update problems, include the `/wl version` and `/wl update` output. Remove private data before posting.
