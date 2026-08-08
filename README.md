@@ -101,8 +101,8 @@ PendingWhitelist checks the official GitHub releases page once a day by default.
 
 ## Contributors
 
-<a href="https://github.com/DarkSpirit006">
-  <img src="https://github.com/DarkSpirit006.png?size=120" width="100" height="100" alt="Dark_Spirit69" title="Dark_Spirit69" />
+<a href="https://github.com/DarkSpirit006/PendingWhitelist/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=DarkSpirit006/PendingWhitelist" alt="Project contributors" />
 </a>
 
 ## License
