@@ -1,10 +1,20 @@
+<div align="center">
+
 # PendingWhitelist
 
-[![Build](https://github.com/DarkSpirit006/PendingWhitelist/actions/workflows/ci.yml/badge.svg)](https://github.com/DarkSpirit006/PendingWhitelist/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Latest release](https://img.shields.io/github/v/release/DarkSpirit006/PendingWhitelist)](https://github.com/DarkSpirit006/PendingWhitelist/releases/latest)
+### Review whitelist requests in-game, without editing JSON by hand.
 
-PendingWhitelist keeps track of players who are turned away by a Paper or Purpur server whitelist. Staff can review those players in game, whitelist them, or clear their requests without editing JSON files by hand. It also supports Geyser/Bedrock players, automatic release updates, and server-panel update logging.
+[![Build](https://img.shields.io/github/actions/workflow/status/DarkSpirit006/PendingWhitelist/ci.yml?style=for-the-badge&label=build)](https://github.com/DarkSpirit006/PendingWhitelist/actions/workflows/ci.yml)
+[![CodeFactor](https://img.shields.io/codefactor/grade/github/DarkSpirit006/PendingWhitelist?style=for-the-badge&label=CodeFactor)](https://www.codefactor.io/repository/github/darkspirit006/pendingwhitelist)
+[![Latest release](https://img.shields.io/github/v/release/DarkSpirit006/PendingWhitelist?style=for-the-badge&color=4169e1&label=release)](https://github.com/DarkSpirit006/PendingWhitelist/releases/latest)
+[![Repository size](https://img.shields.io/github/repo-size/DarkSpirit006/PendingWhitelist?style=for-the-badge&color=8a2be2&label=repo%20size)](https://github.com/DarkSpirit006/PendingWhitelist)
+[![Code size](https://img.shields.io/github/languages/code-size/DarkSpirit006/PendingWhitelist?style=for-the-badge&color=ff8c00&label=code%20size)](https://github.com/DarkSpirit006/PendingWhitelist)
+[![Modrinth downloads](https://img.shields.io/modrinth/dt/pending-whitelist?style=for-the-badge&logo=modrinth&logoColor=white&color=5ca424&label=Modrinth%20downloads)](https://modrinth.com/plugin/pending-whitelist)
+[![GitHub downloads](https://img.shields.io/github/downloads/DarkSpirit006/PendingWhitelist/total?style=for-the-badge&logo=github&logoColor=white&color=24292f&label=GitHub%20downloads)](https://github.com/DarkSpirit006/PendingWhitelist/releases)
+
+</div>
+
+PendingWhitelist keeps track of players turned away by a Paper or Purpur server whitelist. Staff can review those players in-game, whitelist them, or clear their requests without editing JSON files by hand. It also supports Geyser/Bedrock players, automatic release updates, and server-panel update logging.
 
 ## What it does
 
@@ -89,6 +99,14 @@ PendingWhitelist checks the official GitHub releases page once a day by default.
 - [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)
 
+## Contributors
+
+<a href="https://github.com/DarkSpirit006">
+  <img src="https://github.com/DarkSpirit006.png?size=120" width="100" height="100" alt="Dark_Spirit69" title="Dark_Spirit69" />
+</a>
+
 ## License
+
+[![License](https://img.shields.io/badge/license-MIT-2ea44f.svg?style=for-the-badge)](LICENSE)
 
 PendingWhitelist is distributed under the [MIT License](LICENSE).
