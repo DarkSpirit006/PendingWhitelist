@@ -2,7 +2,7 @@
 
 # PendingWhitelist
 
-### Review whitelist requests in-game, without editing JSON by hand.
+### Review whitelist requests with in-game clickable commands.
 
 [![Build](https://img.shields.io/github/actions/workflow/status/DarkSpirit006/PendingWhitelist/ci.yml?style=for-the-badge&label=build)](https://github.com/DarkSpirit006/PendingWhitelist/actions/workflows/ci.yml)
 [![CodeFactor](https://img.shields.io/codefactor/grade/github/DarkSpirit006/PendingWhitelist?style=for-the-badge&label=CodeFactor)](https://www.codefactor.io/repository/github/darkspirit006/pendingwhitelist)
