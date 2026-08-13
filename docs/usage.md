@@ -14,7 +14,7 @@ Hover over pending player names in-game to see stored details such as UUID and a
 - Single player: `/wl add Steve123`
 - Multiple players: `/wl add Steve123 AlexGaming Notch`
 
-When the player is pending, `/wl add` whitelists the player and removes the pending entry. If the player is already whitelisted, the pending entry is still cleared. For Geyser/Bedrock players, PendingWhitelist temporarily adds the UUID, then replaces it with a username whitelist entry after the player joins.
+When the player is pending, `/wl add` whitelists the player and removes the pending entry. If the player is already whitelisted, the pending entry is still cleared. With Floodgate installed, Bedrock players are added through Floodgate's whitelist command so `whitelist.json` receives the correct profile name.
 
 `/wl add` also works as a full `/whitelist add` replacement for players who are not pending:
 
@@ -38,11 +38,9 @@ Use `rpl` when you want to reject or ignore a pending request without touching t
 
 - `/wl reload` - reloads `config.yml`. This does not delete or rewrite `pending.json` unless storage changes are already pending.
 
-## Version and Updates
+## Update Notifications
 
-- `/wl version` - shows the installed version and checks GitHub for the latest version.
-- When an update is available, click the `[Update]` button to start the download. The result is shown in the server panel.
-- Updates are staged in `plugins/update` and installed on the next restart.
+- Administrators are notified on join when a newer stable version is available on Modrinth. Click the `[Modrinth]` link to download it manually.
 
 ## Notes
 

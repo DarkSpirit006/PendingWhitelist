@@ -4,11 +4,12 @@ version: ${version}
 api-version: "26.2"
 authors: [Dark_Spirit69]
 website: https://github.com/DarkSpirit006/PendingWhitelist
+softdepend: [floodgate]
 description: Tracks players rejected by the whitelist and offers simple management commands.
 commands:
   wl:
     description: Manage pending whitelist entries.
-    usage: /wl <pl|list|add|remove|rpl|reload|version>
+    usage: /wl <pl|list|add|remove|rpl|reload>
     permission: pendingwhitelist.admin
 permissions:
   pendingwhitelist.admin:

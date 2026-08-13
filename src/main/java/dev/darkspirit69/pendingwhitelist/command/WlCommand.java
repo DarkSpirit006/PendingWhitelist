@@ -4,11 +4,9 @@ import dev.darkspirit69.pendingwhitelist.PendingWhitelistPlugin;
 import dev.darkspirit69.pendingwhitelist.completion.WhitelistCompletion;
 import dev.darkspirit69.pendingwhitelist.model.PendingEntry;
 import dev.darkspirit69.pendingwhitelist.storage.PendingStorage;
-import dev.darkspirit69.pendingwhitelist.update.PluginUpdater;
 import dev.darkspirit69.pendingwhitelist.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.HoverEvent;
-import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
@@ -22,17 +20,15 @@ import java.util.Locale;
 
 public class WlCommand implements CommandExecutor, TabCompleter {
 
-    private static final String ROOT_USAGE = "&cUsage: /wl <pl|list|add|remove|rpl|reload|version>";
+    private static final String ROOT_USAGE = "&cUsage: /wl <pl|list|add|remove|rpl|reload>";
 
     private final PendingWhitelistPlugin plugin;
     private final PendingStorage pendingStorage;
-    private final PluginUpdater pluginUpdater;
     private final WhitelistCompletion completion;
 
-    public WlCommand(PendingWhitelistPlugin plugin, PendingStorage pendingStorage, PluginUpdater pluginUpdater) {
+    public WlCommand(PendingWhitelistPlugin plugin, PendingStorage pendingStorage) {
         this.plugin = plugin;
         this.pendingStorage = pendingStorage;
-        this.pluginUpdater = pluginUpdater;
         this.completion = new WhitelistCompletion(pendingStorage);
     }
 
@@ -56,7 +52,6 @@ public class WlCommand implements CommandExecutor, TabCompleter {
             case "remove" -> handleRemove(sender, args);
             case "rpl" -> handleRemovePendingOnly(sender, args);
             case "reload" -> handleReload(sender, args);
-            case "version" -> handleVersion(sender, args);
             default -> {
                 TextUtil.send(sender, "&cUnknown subcommand.");
                 TextUtil.send(sender, ROOT_USAGE);
@@ -74,64 +69,6 @@ public class WlCommand implements CommandExecutor, TabCompleter {
         TextUtil.send(sender, "&e/wl remove <name...> &7- Remove from whitelist and pending");
         TextUtil.send(sender, "&e/wl rpl <name...> &7- Remove only from pending");
         TextUtil.send(sender, "&e/wl reload &7- Reload the config");
-        TextUtil.send(sender, "&e/wl version &7- Show the installed version");
-    }
-
-    private boolean handleUpdate(CommandSender sender) {
-        if (!plugin.isUpdateEnabled()) {
-            TextUtil.send(sender, "&eAutomatic updates are disabled in config.yml.");
-            return true;
-        }
-        pluginUpdater.checkNow();
-        TextUtil.send(sender, "&aUpdate check started. See the server panel for the result.");
-        return true;
-    }
-
-    private boolean handleVersion(CommandSender sender, String[] args) {
-        if (args.length == 2 && "update".equalsIgnoreCase(args[1])) {
-            return handleUpdate(sender);
-        }
-        if (args.length != 1) {
-            TextUtil.send(sender, "&cUsage: /wl version");
-            return true;
-        }
-        String currentVersion = plugin.getInstalledVersion();
-        TextUtil.send(sender, "&6PendingWhitelist &7- Installed: &ev" + currentVersion);
-        TextUtil.send(sender, "&7Checking GitHub for the latest version...");
-        pluginUpdater.fetchLatestVersion(latestVersion -> {
-            if (latestVersion == null) {
-                TextUtil.send(sender, "&cUnable to determine the latest version. Check the server panel.");
-                return;
-            }
-
-            boolean updateAvailable = plugin.isUpdateEnabled() && isVersionNewer(latestVersion, currentVersion);
-            TextUtil.send(sender, "&7Latest available: &ev" + latestVersion);
-            if (updateAvailable) {
-                Component updateButton = Component.text("[Update]", NamedTextColor.GREEN)
-                        .clickEvent(ClickEvent.runCommand("/wl version update"))
-                        .hoverEvent(HoverEvent.showText(Component.text("Click to download the latest version")));
-                sender.sendMessage(Component.text(" ")
-                        .append(updateButton));
-            } else if (latestVersion.equals(currentVersion)) {
-                TextUtil.send(sender, "&aYou are running the latest version.");
-            } else if (!plugin.isUpdateEnabled()) {
-                TextUtil.send(sender, "&eAn update is available, but automatic updates are disabled.");
-            }
-        });
-        return true;
-    }
-
-    private boolean isVersionNewer(String candidate, String current) {
-        String[] candidateParts = candidate.split("\\.");
-        String[] currentParts = current.split("\\.");
-        for (int i = 0; i < 3; i++) {
-            int candidatePart = Integer.parseInt(candidateParts[i]);
-            int currentPart = Integer.parseInt(currentParts[i]);
-            if (candidatePart != currentPart) {
-                return candidatePart > currentPart;
-            }
-        }
-        return false;
     }
 
     private boolean handlePendingList(CommandSender sender, String[] args) {
@@ -234,22 +171,16 @@ public class WlCommand implements CommandExecutor, TabCompleter {
 
         List<String> added = new ArrayList<>();
         List<String> alreadyWhitelisted = new ArrayList<>();
-        List<String> unknown = new ArrayList<>();
 
         for (int i = 1; i < args.length; i++) {
             String username = args[i];
             if (pendingStorage.isPending(username)) {
                 PendingEntry pendingEntry = pendingStorage.findPendingEntry(username);
-                boolean addedToWhitelist = pendingStorage.addToWhitelist(username);
-                if (pendingEntry != null && pendingEntry.uuid() != null && !pendingEntry.uuid().isBlank()
-                        && pendingEntry.name() != null && !pendingEntry.name().isBlank()) {
-                    try {
-                        plugin.trackTemporaryUuidWhitelist(
-                                java.util.UUID.fromString(pendingEntry.uuid()), pendingEntry.name());
-                    } catch (IllegalArgumentException ignored) {
-                        // Invalid legacy UUIDs continue through the normal whitelist path.
-                    }
-                }
+                boolean addedToWhitelist = pendingEntry != null
+                        && pendingStorage.isFloodgateUuid(pendingEntry.uuid())
+                        && pendingStorage.hasFloodgateWhitelistSupport()
+                        ? addFloodgatePlayerToWhitelist(pendingEntry, username)
+                        : pendingStorage.addToWhitelist(username);
                 pendingStorage.removePendingOnly(username);
                 if (addedToWhitelist) {
                     added.add(username);
@@ -275,8 +206,16 @@ public class WlCommand implements CommandExecutor, TabCompleter {
         sendResultGroup(sender, "&a✓ Added", added, "✔", NamedTextColor.GREEN, "whitelisted");
         sendResultGroup(sender, "&e• Already whitelisted", alreadyWhitelisted, "•", NamedTextColor.YELLOW,
                 "already whitelisted");
-        sendResultGroup(sender, "&c✖ Unknown", unknown, "•", NamedTextColor.RED, "unknown");
         return true;
+    }
+
+    private boolean addFloodgatePlayerToWhitelist(PendingEntry entry, String identifier) {
+        try {
+            return pendingStorage.addFloodgatePlayerToWhitelist(java.util.UUID.fromString(entry.uuid()));
+        } catch (IllegalArgumentException ex) {
+            plugin.getLogger().warning("Pending Floodgate entry for " + identifier + " has an invalid UUID.");
+            return false;
+        }
     }
 
     private boolean handleRemove(CommandSender sender, String[] args) {
@@ -331,8 +270,11 @@ public class WlCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         plugin.reloadConfig();
-        pendingStorage.loadFromDisk();
-        TextUtil.send(sender, "&aReload complete.");
+        if (pendingStorage.reloadFromDisk()) {
+            TextUtil.send(sender, "&aReload complete.");
+        } else {
+            TextUtil.send(sender, "&cReload failed. Check the server console for details.");
+        }
         return true;
     }
 

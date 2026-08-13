@@ -3,7 +3,3 @@ page-size: 10
 purge:
   enabled: true
   days: 30
-
-update:
-  enabled: true
-  check-interval-hours: 24

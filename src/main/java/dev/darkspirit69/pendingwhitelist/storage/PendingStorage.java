@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -28,8 +29,11 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 public class PendingStorage {
 
@@ -38,11 +42,16 @@ public class PendingStorage {
     private final PendingWhitelistPlugin plugin;
     private final Path storageFile;
     private final List<PendingEntry> pending = new ArrayList<>();
-    private final AtomicBoolean saveInProgress = new AtomicBoolean(false);
+    private final ExecutorService saveExecutor;
 
     public PendingStorage(PendingWhitelistPlugin plugin) {
         this.plugin = plugin;
         this.storageFile = plugin.getDataFolder().toPath().resolve("pending.json");
+        this.saveExecutor = Executors.newSingleThreadExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "PendingWhitelist-Storage");
+            thread.setDaemon(true);
+            return thread;
+        });
     }
 
     public void loadFromDisk() {
@@ -432,6 +441,28 @@ public class PendingStorage {
         return true;
     }
 
+    public boolean addFloodgatePlayerToWhitelist(UUID uuid) {
+        if (uuid == null || !isFloodgateUuid(uuid) || !hasFloodgateWhitelistSupport()) {
+            return false;
+        }
+
+        return Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "fwhitelist add " + uuid);
+    }
+
+    public boolean isFloodgateUuid(String identifier) {
+        UUID uuid = parseUuid(identifier);
+        return uuid != null && isFloodgateUuid(uuid);
+    }
+
+    public boolean hasFloodgateWhitelistSupport() {
+        return Bukkit.getPluginManager().isPluginEnabled("floodgate");
+    }
+
+    private boolean isFloodgateUuid(UUID uuid) {
+        // Floodgate's unlinked Bedrock UUID format reserves the first three UUID groups as zero.
+        return uuid.getMostSignificantBits() == 0L;
+    }
+
     private void repairWhitelistedName(PendingEntry entry, OfflinePlayer offlinePlayer) {
         if (entry == null || !isPlayerName(entry.name())) {
             return;
@@ -605,29 +636,79 @@ public class PendingStorage {
     }
 
     public void scheduleSave() {
-        if (saveInProgress.get()) {
+        if (saveExecutor.isShutdown()) {
             return;
         }
-        CompletableFuture.runAsync(this::saveToDisk);
+        submitSave(List.copyOf(pending));
     }
 
     public void flushSynchronously() {
-        saveToDisk();
+        if (!saveExecutor.isShutdown()) {
+            waitFor(submitSave(List.copyOf(pending)), "save pending entries during shutdown");
+            saveExecutor.shutdown();
+        }
+
+        try {
+            if (!saveExecutor.awaitTermination(10, TimeUnit.SECONDS)) {
+                plugin.getLogger().warning("Timed out while waiting for pending storage writes to finish.");
+            }
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            plugin.getLogger().warning("Interrupted while waiting for pending storage writes to finish.");
+        }
     }
 
-    private void saveToDisk() {
-        if (saveInProgress.getAndSet(true)) {
-            return;
+    public boolean reloadFromDisk() {
+        if (!saveExecutor.isShutdown() && !waitFor(saveExecutor.submit(() -> {
+        }), "finish pending storage writes before reloading")) {
+            return false;
         }
+
+        loadFromDisk();
+        return true;
+    }
+
+    private Future<?> submitSave(List<PendingEntry> snapshot) {
+        return saveExecutor.submit(() -> saveToDisk(snapshot));
+    }
+
+    private boolean waitFor(Future<?> future, String operation) {
+        try {
+            future.get();
+            return true;
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            plugin.getLogger().warning("Interrupted while trying to " + operation + ".");
+        } catch (ExecutionException ex) {
+            plugin.getLogger().warning("Failed to " + operation + ": " + ex.getCause().getMessage());
+        }
+        return false;
+    }
+
+    private void saveToDisk(List<PendingEntry> snapshot) {
+        Path temporaryFile = null;
         try {
             Files.createDirectories(storageFile.getParent());
-            String serialized = GSON.toJson(pending);
-            Files.writeString(storageFile, serialized, StandardCharsets.UTF_8, StandardOpenOption.CREATE,
+            temporaryFile = Files.createTempFile(storageFile.getParent(), "pending-", ".tmp");
+            Files.writeString(temporaryFile, GSON.toJson(snapshot), StandardCharsets.UTF_8,
                     StandardOpenOption.TRUNCATE_EXISTING);
+            try {
+                Files.move(temporaryFile, storageFile, StandardCopyOption.ATOMIC_MOVE,
+                        StandardCopyOption.REPLACE_EXISTING);
+            } catch (java.nio.file.AtomicMoveNotSupportedException ex) {
+                Files.move(temporaryFile, storageFile, StandardCopyOption.REPLACE_EXISTING);
+            }
         } catch (IOException ex) {
             plugin.getLogger().warning("Failed to save pending.json: " + ex.getMessage());
         } finally {
-            saveInProgress.set(false);
+            if (temporaryFile != null) {
+                try {
+                    Files.deleteIfExists(temporaryFile);
+                } catch (IOException ex) {
+                    plugin.getLogger().warning("Failed to clean up a temporary pending storage file: "
+                            + ex.getMessage());
+                }
+            }
         }
     }
 }

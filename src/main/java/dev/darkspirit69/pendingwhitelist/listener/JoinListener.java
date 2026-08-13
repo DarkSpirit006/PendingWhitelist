@@ -2,7 +2,7 @@ package dev.darkspirit69.pendingwhitelist.listener;
 
 import dev.darkspirit69.pendingwhitelist.PendingWhitelistPlugin;
 import dev.darkspirit69.pendingwhitelist.storage.PendingStorage;
-import org.bukkit.Bukkit;
+import dev.darkspirit69.pendingwhitelist.update.UpdateNotifier;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
@@ -14,10 +14,12 @@ public class JoinListener implements Listener {
 
     private final PendingStorage pendingStorage;
     private final PendingWhitelistPlugin plugin;
+    private final UpdateNotifier updateNotifier;
 
-    public JoinListener(PendingWhitelistPlugin plugin, PendingStorage pendingStorage) {
+    public JoinListener(PendingWhitelistPlugin plugin, PendingStorage pendingStorage, UpdateNotifier updateNotifier) {
         this.plugin = plugin;
         this.pendingStorage = pendingStorage;
+        this.updateNotifier = updateNotifier;
     }
 
     @EventHandler
@@ -42,24 +44,7 @@ public class JoinListener implements Listener {
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
-        UUID uuid = event.getPlayer().getUniqueId();
-        String username = plugin.consumeTemporaryUuidWhitelist(uuid);
-        if (username == null) {
-            return;
-        }
+        updateNotifier.notifyIfUpdateAvailable(event.getPlayer());
 
-        // Run after the join has completed. Geyser may not have finished
-        // publishing the player's profile when PlayerJoinEvent is delivered.
-        Bukkit.getScheduler().runTask(plugin, () -> {
-            boolean removed = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "whitelist remove " + uuid);
-            boolean added = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "whitelist add " + username);
-            if (removed && added) {
-                plugin.getLogger().info("Converted the temporary UUID whitelist entry for " + username
-                        + " to a username entry after the player joined.");
-            } else {
-                plugin.getLogger().warning("Could not convert the temporary UUID whitelist entry for " + username
-                        + " (remove=" + removed + ", add=" + added + ").");
-            }
-        });
     }
 }

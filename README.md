@@ -14,7 +14,7 @@
 
 </div>
 
-PendingWhitelist keeps track of players turned away by a Paper or Purpur server whitelist. Staff can review those players in-game, whitelist them, or clear their requests without editing JSON files by hand. It also supports Geyser/Bedrock players, automatic release updates, and server-panel update logging.
+PendingWhitelist keeps track of players turned away by a Paper or Purpur server whitelist. Staff can review those players in-game, whitelist them, or clear their requests without editing JSON files by hand. It also supports Geyser/Bedrock players and Modrinth update notifications for administrators.
 
 ## What it does
 
@@ -23,8 +23,8 @@ PendingWhitelist keeps track of players turned away by a Paper or Purpur server 
 - Provides clickable staff actions for approving or dismissing requests.
 - Supports batch operations for approving, removing, and clearing entries.
 - Purges old requests automatically when enabled.
-- Converts approved Geyser player UUID whitelist entries into username entries after they join.
-- Checks GitHub releases and stages newer plugin versions automatically.
+- Uses Floodgate's whitelist command for approved Bedrock players, preserving their username in `whitelist.json`.
+- Notifies administrators who join when a newer Modrinth release is available.
 
 ## Requirements
 
@@ -64,7 +64,6 @@ Manual releases can still be started with `workflow_dispatch`.
 | `/wl remove <identifier> [identifier ...]` | Remove players from the server whitelist and pending storage. |
 | `/wl rpl <identifier> [identifier ...]` | Clear pending requests without changing the server whitelist. |
 | `/wl reload` | Reload `config.yml`. |
-| `/wl version` | Show the installed version, latest available version, and a clickable update button when applicable. |
 
 All commands require the `pendingwhitelist.admin` permission, which defaults to server operators. An identifier can be either the stored player name or UUID.
 
@@ -76,21 +75,17 @@ page-size: 10
 purge:
   enabled: true
   days: 30
-
-update:
-  enabled: true
-  check-interval-hours: 24
 ```
 
 See the [configuration guide](docs/config.md) for details.
 
 ## Data and storage
 
-Pending requests are stored in `plugins/PendingWhitelist/pending.json`. The plugin keeps entries in memory and writes changes asynchronously. The server's `whitelist.json` remains managed by Paper; PendingWhitelist uses the server whitelist API and console whitelist commands rather than editing that file directly. For approved Geyser players, the UUID is whitelisted first so they can join, then the UUID entry is replaced with `/whitelist add <username>` after their first join.
+Pending requests are stored in `plugins/PendingWhitelist/pending.json`. The plugin keeps entries in memory and writes changes asynchronously. The server's `whitelist.json` remains managed by Paper; PendingWhitelist uses the server whitelist API rather than editing that file directly. When Floodgate is installed, approved Bedrock players are added through Floodgate's `fwhitelist` command so their profile name is stored correctly.
 
-## Automatic updates
+## Update Notifications
 
-PendingWhitelist checks the official GitHub releases page once a day by default. Startup checks, version checks, current-version results, download results, and errors are written to the server panel. When a newer JAR is available, it downloads the file to `plugins/update`. Paper installs staged plugin updates on the next server restart. Set `update.enabled` to `false` in `config.yml` to manage updates manually.
+When an administrator joins, PendingWhitelist checks the official Modrinth project for a newer stable release. If one is available, the administrator receives a clickable Modrinth link. The plugin never downloads or installs updates automatically.
 
 ## Documentation
 
