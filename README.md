@@ -23,7 +23,7 @@ PendingWhitelist keeps track of players turned away by a Paper or Purpur server 
 - Provides clickable staff actions for approving or dismissing requests.
 - Supports batch operations for approving, removing, and clearing entries.
 - Purges old requests automatically when enabled.
-- Uses Floodgate's whitelist command with the original Bedrock username, preserving their username in `whitelist.json`.
+- Writes the known Floodgate UUID and Bedrock username directly to `whitelist.json`, preserving the correct profile name even after the player disconnects.
 - Notifies administrators who join when a newer Modrinth release is available.
 
 ## Requirements
@@ -82,7 +82,7 @@ See the [configuration guide](docs/config.md) for details.
 
 ## Data and storage
 
-Pending requests are stored in `plugins/PendingWhitelist/pending.json`. The plugin keeps entries in memory and writes changes asynchronously. The server's `whitelist.json` remains managed by Paper; PendingWhitelist uses the server whitelist API rather than editing that file directly. When Floodgate is installed, approved Bedrock players are added through Floodgate's `fwhitelist` command so their profile name is stored correctly.
+Pending requests are stored in `plugins/PendingWhitelist/pending.json`. The plugin keeps entries in memory and writes changes asynchronously. The server's `whitelist.json` remains managed by Paper; approved Bedrock entries are updated with their known Floodgate UUID and username, then Paper reloads the whitelist.
 
 ## Update Notifications
 

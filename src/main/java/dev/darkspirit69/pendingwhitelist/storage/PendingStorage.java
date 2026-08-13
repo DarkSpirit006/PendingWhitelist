@@ -2,6 +2,7 @@ package dev.darkspirit69.pendingwhitelist.storage;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
@@ -441,22 +442,83 @@ public class PendingStorage {
         return true;
     }
 
-    public boolean addFloodgatePlayerToWhitelist(String username) {
+    public boolean addFloodgatePlayerToWhitelist(UUID uuid, String username) {
         String normalizedUsername = normalizeIdentifier(username);
-        if (normalizedUsername == null || !hasFloodgateWhitelistSupport()) {
+        if (uuid == null || normalizedUsername == null || !isFloodgateUuid(uuid)) {
             return false;
         }
 
-        return Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "fwhitelist add " + normalizedUsername);
+        return writeFloodgateWhitelistEntry(uuid, normalizedUsername);
+    }
+
+    private boolean writeFloodgateWhitelistEntry(UUID uuid, String username) {
+        Path whitelistFile = plugin.getServer().getWorldContainer().toPath().resolve("whitelist.json");
+        try {
+            JsonArray whitelist;
+            if (Files.exists(whitelistFile)) {
+                JsonElement root = JsonParser.parseString(Files.readString(whitelistFile, StandardCharsets.UTF_8));
+                if (!root.isJsonArray()) {
+                    plugin.getLogger().warning("Could not update whitelist.json: the file is not an array.");
+                    return false;
+                }
+                whitelist = root.getAsJsonArray();
+            } else {
+                whitelist = new JsonArray();
+            }
+
+            boolean found = false;
+            for (int index = whitelist.size() - 1; index >= 0; index--) {
+                JsonElement element = whitelist.get(index);
+                if (!element.isJsonObject()) {
+                    continue;
+                }
+                JsonObject entry = element.getAsJsonObject();
+                if (uuid.toString().equalsIgnoreCase(getString(entry, "uuid"))) {
+                    if (found) {
+                        whitelist.remove(index);
+                    } else {
+                        entry.addProperty("name", username);
+                        found = true;
+                    }
+                }
+            }
+            if (!found) {
+                JsonObject entry = new JsonObject();
+                entry.addProperty("uuid", uuid.toString());
+                entry.addProperty("name", username);
+                whitelist.add(entry);
+            }
+
+            Files.createDirectories(whitelistFile.getParent());
+            Path temporaryFile = Files.createTempFile(whitelistFile.getParent(), "whitelist-", ".tmp");
+            try {
+                Files.writeString(temporaryFile, GSON.toJson(whitelist), StandardCharsets.UTF_8,
+                        StandardOpenOption.TRUNCATE_EXISTING);
+                try {
+                    Files.move(temporaryFile, whitelistFile, StandardCopyOption.ATOMIC_MOVE,
+                            StandardCopyOption.REPLACE_EXISTING);
+                } catch (java.nio.file.AtomicMoveNotSupportedException ex) {
+                    Files.move(temporaryFile, whitelistFile, StandardCopyOption.REPLACE_EXISTING);
+                }
+            } finally {
+                Files.deleteIfExists(temporaryFile);
+            }
+            boolean reloaded = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "whitelist reload");
+            if (!reloaded) {
+                plugin.getLogger().warning("Updated whitelist.json for " + username
+                        + ", but Paper could not reload the whitelist.");
+            }
+            return true;
+        } catch (IOException | JsonParseException ex) {
+            plugin.getLogger().warning("Could not write the Floodgate whitelist entry for " + username + ": "
+                    + ex.getMessage());
+            return false;
+        }
     }
 
     public boolean isFloodgateUuid(String identifier) {
         UUID uuid = parseUuid(identifier);
         return uuid != null && isFloodgateUuid(uuid);
-    }
-
-    public boolean hasFloodgateWhitelistSupport() {
-        return Bukkit.getPluginManager().isPluginEnabled("floodgate");
     }
 
     private boolean isFloodgateUuid(UUID uuid) {

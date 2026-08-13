@@ -193,7 +193,6 @@ public class WlCommand implements CommandExecutor, TabCompleter {
                 PendingEntry pendingEntry = pendingStorage.findPendingEntry(username);
                 boolean addedToWhitelist = pendingEntry != null
                         && pendingStorage.isFloodgateUuid(pendingEntry.uuid())
-                        && pendingStorage.hasFloodgateWhitelistSupport()
                         ? addFloodgatePlayerToWhitelist(pendingEntry, username)
                         : pendingStorage.addToWhitelist(username);
                 pendingStorage.removePendingOnly(username);
@@ -231,13 +230,12 @@ public class WlCommand implements CommandExecutor, TabCompleter {
             return false;
         }
 
-        // Floodgate's command expects the original Bedrock username, without its Java-side prefix.
-        String floodgateUsername = username.trim();
-        if (floodgateUsername.length() > 1 && !Character.isLetterOrDigit(floodgateUsername.charAt(0))
-                && floodgateUsername.charAt(0) != '_') {
-            floodgateUsername = floodgateUsername.substring(1);
+        try {
+            return pendingStorage.addFloodgatePlayerToWhitelist(java.util.UUID.fromString(entry.uuid()), username);
+        } catch (IllegalArgumentException ex) {
+            plugin.getLogger().warning("Pending Floodgate entry for " + identifier + " has an invalid UUID.");
+            return false;
         }
-        return pendingStorage.addFloodgatePlayerToWhitelist(floodgateUsername);
     }
 
     private boolean handleRemove(CommandSender sender, String[] args) {
