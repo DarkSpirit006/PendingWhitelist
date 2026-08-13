@@ -9,7 +9,7 @@ description: Tracks players rejected by the whitelist and offers simple manageme
 commands:
   wl:
     description: Manage pending whitelist entries.
-    usage: /wl <pl|list|add|remove|rpl|reload>
+    usage: /wl <pl|list|add|remove|rpl|reload|version>
     permission: pendingwhitelist.admin
 permissions:
   pendingwhitelist.admin:

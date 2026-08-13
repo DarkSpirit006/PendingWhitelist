@@ -23,7 +23,7 @@ PendingWhitelist keeps track of players turned away by a Paper or Purpur server 
 - Provides clickable staff actions for approving or dismissing requests.
 - Supports batch operations for approving, removing, and clearing entries.
 - Purges old requests automatically when enabled.
-- Uses Floodgate's whitelist command for approved Bedrock players, preserving their username in `whitelist.json`.
+- Uses Floodgate's whitelist command with the original Bedrock username, preserving their username in `whitelist.json`.
 - Notifies administrators who join when a newer Modrinth release is available.
 
 ## Requirements
@@ -64,6 +64,7 @@ Manual releases can still be started with `workflow_dispatch`.
 | `/wl remove <identifier> [identifier ...]` | Remove players from the server whitelist and pending storage. |
 | `/wl rpl <identifier> [identifier ...]` | Clear pending requests without changing the server whitelist. |
 | `/wl reload` | Reload `config.yml`. |
+| `/wl version` | Check Modrinth for the latest stable version. |
 
 All commands require the `pendingwhitelist.admin` permission, which defaults to server operators. An identifier can be either the stored player name or UUID.
 
@@ -85,7 +86,7 @@ Pending requests are stored in `plugins/PendingWhitelist/pending.json`. The plug
 
 ## Update Notifications
 
-When an administrator joins, PendingWhitelist checks the official Modrinth project for a newer stable release. If one is available, the administrator receives a clickable Modrinth link. The plugin never downloads or installs updates automatically.
+When an administrator joins, PendingWhitelist checks the official Modrinth project for a newer stable release. If one is available, the administrator receives a clickable Modrinth link. Administrators can also run `/wl version` to check manually. The plugin never downloads or installs updates automatically.
 
 ## Documentation
 

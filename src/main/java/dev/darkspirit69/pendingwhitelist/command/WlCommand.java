@@ -4,6 +4,7 @@ import dev.darkspirit69.pendingwhitelist.PendingWhitelistPlugin;
 import dev.darkspirit69.pendingwhitelist.completion.WhitelistCompletion;
 import dev.darkspirit69.pendingwhitelist.model.PendingEntry;
 import dev.darkspirit69.pendingwhitelist.storage.PendingStorage;
+import dev.darkspirit69.pendingwhitelist.update.UpdateNotifier;
 import dev.darkspirit69.pendingwhitelist.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.HoverEvent;
@@ -20,15 +21,17 @@ import java.util.Locale;
 
 public class WlCommand implements CommandExecutor, TabCompleter {
 
-    private static final String ROOT_USAGE = "&cUsage: /wl <pl|list|add|remove|rpl|reload>";
+    private static final String ROOT_USAGE = "&cUsage: /wl <pl|list|add|remove|rpl|reload|version>";
 
     private final PendingWhitelistPlugin plugin;
     private final PendingStorage pendingStorage;
+    private final UpdateNotifier updateNotifier;
     private final WhitelistCompletion completion;
 
-    public WlCommand(PendingWhitelistPlugin plugin, PendingStorage pendingStorage) {
+    public WlCommand(PendingWhitelistPlugin plugin, PendingStorage pendingStorage, UpdateNotifier updateNotifier) {
         this.plugin = plugin;
         this.pendingStorage = pendingStorage;
+        this.updateNotifier = updateNotifier;
         this.completion = new WhitelistCompletion(pendingStorage);
     }
 
@@ -52,6 +55,7 @@ public class WlCommand implements CommandExecutor, TabCompleter {
             case "remove" -> handleRemove(sender, args);
             case "rpl" -> handleRemovePendingOnly(sender, args);
             case "reload" -> handleReload(sender, args);
+            case "version" -> handleVersion(sender, args);
             default -> {
                 TextUtil.send(sender, "&cUnknown subcommand.");
                 TextUtil.send(sender, ROOT_USAGE);
@@ -69,6 +73,17 @@ public class WlCommand implements CommandExecutor, TabCompleter {
         TextUtil.send(sender, "&e/wl remove <name...> &7- Remove from whitelist and pending");
         TextUtil.send(sender, "&e/wl rpl <name...> &7- Remove only from pending");
         TextUtil.send(sender, "&e/wl reload &7- Reload the config");
+        TextUtil.send(sender, "&e/wl version &7- Check the latest Modrinth version");
+    }
+
+    private boolean handleVersion(CommandSender sender, String[] args) {
+        if (args.length != 1) {
+            TextUtil.send(sender, "&cUsage: /wl version");
+            return true;
+        }
+        TextUtil.send(sender, "&7Checking Modrinth for the latest version...");
+        updateNotifier.checkNow(sender);
+        return true;
     }
 
     private boolean handlePendingList(CommandSender sender, String[] args) {
@@ -210,12 +225,19 @@ public class WlCommand implements CommandExecutor, TabCompleter {
     }
 
     private boolean addFloodgatePlayerToWhitelist(PendingEntry entry, String identifier) {
-        try {
-            return pendingStorage.addFloodgatePlayerToWhitelist(java.util.UUID.fromString(entry.uuid()));
-        } catch (IllegalArgumentException ex) {
-            plugin.getLogger().warning("Pending Floodgate entry for " + identifier + " has an invalid UUID.");
+        String username = entry.name();
+        if (username == null || username.isBlank()) {
+            plugin.getLogger().warning("Pending Floodgate entry for " + identifier + " has no username.");
             return false;
         }
+
+        // Floodgate's command expects the original Bedrock username, without its Java-side prefix.
+        String floodgateUsername = username.trim();
+        if (floodgateUsername.length() > 1 && !Character.isLetterOrDigit(floodgateUsername.charAt(0))
+                && floodgateUsername.charAt(0) != '_') {
+            floodgateUsername = floodgateUsername.substring(1);
+        }
+        return pendingStorage.addFloodgatePlayerToWhitelist(floodgateUsername);
     }
 
     private boolean handleRemove(CommandSender sender, String[] args) {

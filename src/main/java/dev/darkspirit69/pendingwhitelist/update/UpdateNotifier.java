@@ -10,6 +10,7 @@ import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import java.io.IOException;
@@ -60,6 +61,32 @@ public final class UpdateNotifier {
                                 .hoverEvent(HoverEvent.showText(
                                         Component.text("Open PendingWhitelist on Modrinth", NamedTextColor.AQUA))));
                 player.sendMessage(message);
+            });
+        });
+    }
+
+    public void checkNow(CommandSender sender) {
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            String latestVersion = fetchLatestVersion();
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (latestVersion == null) {
+                    sender.sendMessage(Component.text("[PendingWhitelist] ", NamedTextColor.GOLD)
+                            .append(Component.text("Could not determine the latest Modrinth version.", NamedTextColor.RED)));
+                    return;
+                }
+
+                Component message = Component.text("[PendingWhitelist] ", NamedTextColor.GOLD)
+                        .append(Component.text("Installed: v" + plugin.getInstalledVersion(), NamedTextColor.GRAY))
+                        .append(Component.text(" | Latest: v" + latestVersion, NamedTextColor.GRAY));
+                if (isNewer(latestVersion, plugin.getInstalledVersion())) {
+                    message = message.append(Component.text(" [Modrinth]", NamedTextColor.AQUA)
+                            .clickEvent(ClickEvent.openUrl(PROJECT_URL))
+                            .hoverEvent(HoverEvent.showText(
+                                    Component.text("Open PendingWhitelist on Modrinth", NamedTextColor.AQUA))));
+                } else {
+                    message = message.append(Component.text(" (up to date)", NamedTextColor.GREEN));
+                }
+                sender.sendMessage(message);
             });
         });
     }

@@ -441,12 +441,13 @@ public class PendingStorage {
         return true;
     }
 
-    public boolean addFloodgatePlayerToWhitelist(UUID uuid) {
-        if (uuid == null || !isFloodgateUuid(uuid) || !hasFloodgateWhitelistSupport()) {
+    public boolean addFloodgatePlayerToWhitelist(String username) {
+        String normalizedUsername = normalizeIdentifier(username);
+        if (normalizedUsername == null || !hasFloodgateWhitelistSupport()) {
             return false;
         }
 
-        return Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "fwhitelist add " + uuid);
+        return Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "fwhitelist add " + normalizedUsername);
     }
 
     public boolean isFloodgateUuid(String identifier) {

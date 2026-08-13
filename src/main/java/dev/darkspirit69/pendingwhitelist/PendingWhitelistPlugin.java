@@ -18,7 +18,7 @@ public final class PendingWhitelistPlugin extends JavaPlugin {
 
         this.pendingStorage = new PendingStorage(this);
         this.updateNotifier = new UpdateNotifier(this);
-        this.wlCommand = new WlCommand(this, pendingStorage);
+        this.wlCommand = new WlCommand(this, pendingStorage, updateNotifier);
 
         pendingStorage.loadFromDisk();
         getServer().getPluginManager().registerEvents(new JoinListener(this, pendingStorage, updateNotifier), this);

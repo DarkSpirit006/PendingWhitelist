@@ -41,6 +41,7 @@ Use `rpl` when you want to reject or ignore a pending request without touching t
 ## Update Notifications
 
 - Administrators are notified on join when a newer stable version is available on Modrinth. Click the `[Modrinth]` link to download it manually.
+- Run `/wl version` to check the installed version against Modrinth manually.
 
 ## Notes
 
