@@ -193,8 +193,8 @@ public class WlCommand implements CommandExecutor, TabCompleter {
                 PendingEntry pendingEntry = pendingStorage.findPendingEntry(username);
                 boolean addedToWhitelist = pendingEntry != null
                         && pendingStorage.isFloodgateUuid(pendingEntry.uuid())
-                        ? addFloodgatePlayerToWhitelist(pendingEntry, username)
-                        : pendingStorage.addToWhitelist(username);
+                                ? addFloodgatePlayerToWhitelist(pendingEntry, username)
+                                : pendingStorage.addToWhitelist(username);
                 pendingStorage.removePendingOnly(username);
                 if (addedToWhitelist) {
                     added.add(username);

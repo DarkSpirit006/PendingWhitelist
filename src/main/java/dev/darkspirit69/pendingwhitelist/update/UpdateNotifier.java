@@ -22,8 +22,7 @@ import java.time.Duration;
 
 public final class UpdateNotifier {
 
-    private static final String VERSIONS_URL =
-            "https://api.modrinth.com/v2/project/pending-whitelist/version";
+    private static final String VERSIONS_URL = "https://api.modrinth.com/v2/project/pending-whitelist/version";
     private static final String PROJECT_URL = "https://modrinth.com/plugin/pending-whitelist";
 
     private final PendingWhitelistPlugin plugin;
@@ -55,7 +54,8 @@ public final class UpdateNotifier {
                 Component message = Component.text("[PendingWhitelist] ", NamedTextColor.GOLD)
                         .append(Component.text("Update available: ", NamedTextColor.YELLOW))
                         .append(Component.text("v" + latestVersion, NamedTextColor.GREEN))
-                        .append(Component.text(" (installed: v" + plugin.getInstalledVersion() + ") ", NamedTextColor.GRAY))
+                        .append(Component.text(" (installed: v" + plugin.getInstalledVersion() + ") ",
+                                NamedTextColor.GRAY))
                         .append(Component.text("[Modrinth]", NamedTextColor.AQUA)
                                 .clickEvent(ClickEvent.openUrl(PROJECT_URL))
                                 .hoverEvent(HoverEvent.showText(
@@ -71,7 +71,8 @@ public final class UpdateNotifier {
             Bukkit.getScheduler().runTask(plugin, () -> {
                 if (latestVersion == null) {
                     sender.sendMessage(Component.text("[PendingWhitelist] ", NamedTextColor.GOLD)
-                            .append(Component.text("Could not determine the latest Modrinth version.", NamedTextColor.RED)));
+                            .append(Component.text("Could not determine the latest Modrinth version.",
+                                    NamedTextColor.RED)));
                     return;
                 }
 
@@ -101,7 +102,8 @@ public final class UpdateNotifier {
                     .build();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() != 200) {
-                plugin.getLogger().warning("Could not check Modrinth for updates (HTTP " + response.statusCode() + ").");
+                plugin.getLogger()
+                        .warning("Could not check Modrinth for updates (HTTP " + response.statusCode() + ").");
                 return null;
             }
             return findLatestRelease(JsonParser.parseString(response.body()).getAsJsonArray());

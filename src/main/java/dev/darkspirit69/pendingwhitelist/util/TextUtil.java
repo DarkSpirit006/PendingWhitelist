@@ -8,10 +8,8 @@ import java.util.Objects;
 
 public final class TextUtil {
 
-    private static final LegacyComponentSerializer AMPERSAND_SERIALIZER =
-            LegacyComponentSerializer.legacyAmpersand();
-    private static final LegacyComponentSerializer SECTION_SERIALIZER =
-            LegacyComponentSerializer.legacySection();
+    private static final LegacyComponentSerializer AMPERSAND_SERIALIZER = LegacyComponentSerializer.legacyAmpersand();
+    private static final LegacyComponentSerializer SECTION_SERIALIZER = LegacyComponentSerializer.legacySection();
 
     private TextUtil() {
     }
