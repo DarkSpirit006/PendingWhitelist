@@ -3,6 +3,7 @@ package dev.darkspirit69.pendingwhitelist.update;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import dev.darkspirit69.pendingwhitelist.PendingWhitelistPlugin;
 import net.kyori.adventure.text.Component;
@@ -20,12 +21,15 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 
+/** Checks Modrinth for a newer stable release without blocking the server thread. */
 public final class UpdateNotifier {
 
     private static final String VERSIONS_URL = "https://api.modrinth.com/v2/project/pending-whitelist/version";
     private static final String PROJECT_URL = "https://modrinth.com/plugin/pending-whitelist";
+    private static final long JOIN_CHECK_COOLDOWN_MILLIS = 60L * 60L * 1000L;
 
     private final PendingWhitelistPlugin plugin;
+    private volatile long lastJoinCheckAt;
     private final HttpClient httpClient;
 
     public UpdateNotifier(PendingWhitelistPlugin plugin) {
@@ -37,7 +41,7 @@ public final class UpdateNotifier {
     }
 
     public void notifyIfUpdateAvailable(Player player) {
-        if (!player.hasPermission("pendingwhitelist.admin")) {
+        if (!player.hasPermission("pendingwhitelist.admin") || !shouldCheckOnJoin()) {
             return;
         }
 
@@ -63,6 +67,15 @@ public final class UpdateNotifier {
                 player.sendMessage(message);
             });
         });
+    }
+
+    private boolean shouldCheckOnJoin() {
+        long now = System.currentTimeMillis();
+        if (now - lastJoinCheckAt < JOIN_CHECK_COOLDOWN_MILLIS) {
+            return false;
+        }
+        lastJoinCheckAt = now;
+        return true;
     }
 
     public void checkNow(CommandSender sender) {
@@ -112,7 +125,7 @@ public final class UpdateNotifier {
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             plugin.getLogger().warning("Modrinth update check was interrupted.");
-        } catch (RuntimeException ex) {
+        } catch (JsonParseException | IllegalStateException | UnsupportedOperationException ex) {
             plugin.getLogger().warning("Modrinth returned an unexpected update response: " + ex.getMessage());
         }
         return null;

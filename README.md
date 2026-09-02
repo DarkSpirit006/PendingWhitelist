@@ -2,71 +2,97 @@
 
 # PendingWhitelist
 
-### Review whitelist requests with in-game clickable commands.
+### Review and manage whitelist requests directly in-game.
 
-[![Build](https://img.shields.io/github/actions/workflow/status/DarkSpirit006/PendingWhitelist/ci.yml?style=for-the-badge&label=build)](https://github.com/DarkSpirit006/PendingWhitelist/actions/workflows/ci.yml)
-[![CodeFactor](https://img.shields.io/codefactor/grade/github/DarkSpirit006/PendingWhitelist?style=for-the-badge&label=CodeFactor)](https://www.codefactor.io/repository/github/darkspirit006/pendingwhitelist)
-[![Latest release](https://img.shields.io/github/v/release/DarkSpirit006/PendingWhitelist?style=for-the-badge&color=4169e1&label=release)](https://github.com/DarkSpirit006/PendingWhitelist/releases/latest)
-[![Repository size](https://img.shields.io/github/repo-size/DarkSpirit006/PendingWhitelist?style=for-the-badge&color=8a2be2&label=repo%20size)](https://github.com/DarkSpirit006/PendingWhitelist)
-[![Code size](https://img.shields.io/github/languages/code-size/DarkSpirit006/PendingWhitelist?style=for-the-badge&color=ff8c00&label=code%20size)](https://github.com/DarkSpirit006/PendingWhitelist)
-[![Modrinth downloads](https://img.shields.io/modrinth/dt/pending-whitelist?style=for-the-badge&logo=modrinth&logoColor=white&color=5ca424&label=Modrinth%20downloads)](https://modrinth.com/plugin/pending-whitelist)
-[![GitHub downloads](https://img.shields.io/github/downloads/DarkSpirit006/PendingWhitelist/total?style=for-the-badge&logo=github&logoColor=white&color=24292f&label=GitHub%20downloads)](https://github.com/DarkSpirit006/PendingWhitelist/releases)
+[![Build](https://img.shields.io/github/actions/workflow/status/DarkSpirit006/PendingWhitelist/build.yml?style=for-the-badge&logo=githubactions&logoColor=white&label=Build)](https://github.com/DarkSpirit006/PendingWhitelist/actions/workflows/build.yml)
+[![CodeFactor](https://img.shields.io/codefactor/grade/github/DarkSpirit006/PendingWhitelist?style=for-the-badge&logo=codefactor&logoColor=white&label=Code%20Quality)](https://www.codefactor.io/repository/github/darkspirit006/pendingwhitelist)
+[![Release](https://img.shields.io/github/v/release/DarkSpirit006/PendingWhitelist?style=for-the-badge&logo=github&logoColor=white&label=Release)](https://github.com/DarkSpirit006/PendingWhitelist/releases/latest)
+[![Modrinth](https://img.shields.io/modrinth/dt/pending-whitelist?style=for-the-badge&logo=modrinth&logoColor=white&label=Downloads)](https://modrinth.com/plugin/pending-whitelist)
+
+[![Java 25](https://img.shields.io/badge/Java-25-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)](https://adoptium.net/temurin/)
+[![Gradle 9.7.1](https://img.shields.io/badge/Gradle-9.7.1-02303A?style=for-the-badge&logo=gradle&logoColor=white)](https://gradle.org/)
+[![Paper](https://img.shields.io/badge/Paper-26.2-1D1D1D?style=for-the-badge&logo=minecraft&logoColor=white)](https://papermc.io/)
+[![License](https://img.shields.io/badge/License-See%20LICENSE-6E6E6E?style=for-the-badge&logo=readthedocs&logoColor=white)](LICENSE)
 
 </div>
 
-PendingWhitelist keeps track of players turned away by a Paper or Purpur server whitelist. Staff can review those players in-game, whitelist them, or clear their requests without editing JSON files by hand. It also supports Geyser/Bedrock players and Modrinth update notifications for administrators.
+PendingWhitelist records players rejected by a server whitelist and gives staff a fast, in-game way to review and manage them. Version 2.0.0 is a major GUI-focused update with unified layouts, Bedrock support, background skin handling, and live GUI updates.
 
-## What it does
+## Features
 
-- Records a player's UUID, name, attempt count, and most recent attempt.
-- Shows pending requests newest first with configurable pagination.
-- Provides clickable staff actions for approving or dismissing requests.
-- Supports batch operations for approving, removing, and clearing entries.
-- Purges old requests automatically when enabled.
-- Writes the known Floodgate UUID and Bedrock username directly to `whitelist.json`, preserving the correct profile name even after the player disconnects.
-- Notifies administrators who join when a newer Modrinth release is available.
+- Records UUID, username, attempt count, and timestamps for rejected joins.
+- `/wl add` provides a graphical replacement for `/whitelist add` when used without a player name.
+- `/wl list [page]` shows whitelisted players in chat.
+- `/wl remove` opens the Whitelisted Players GUI; `/wl remove <player...>` removes players directly.
+- `/wl pl [page]` shows pending players in chat.
+- `/wl rpl` opens the Add Players GUI; `/wl rpl <player...>` removes pending requests only.
+- `/wl on` and `/wl off` control the server whitelist.
+- Player entries are grouped by Pending/Other and Java/Bedrock without breaking row boundaries.
+- Shift-click supports page-wide add and remove actions.
+- Pagination controls appear only when another page exists.
+- GUI changes update immediately; there is no manual GUI refresh button.
+- Player skins are resolved in the background when possible, without blocking GUI clicks.
+- Floodgate usernames use the configured Floodgate prefix when players are added.
+- The join notification keeps clickable whitelist, reject, and GUI actions.
+- Old pending requests can be purged automatically.
+- `/wl version` checks the latest stable release on Modrinth.
 
 ## Requirements
 
 - Java 25
-- Paper or Purpur with Paper API `26.2`
+- Paper or Purpur using the Paper API `26.2`
+- Floodgate is optional and is used when installed.
+- SkinsRestorer is optional and is used as a skin provider when installed.
 
 ## Build
 
-Run the Gradle wrapper from the project directory:
+The project uses **Gradle 9.7.1** and Kotlin DSL.
 
 ```powershell
-.\gradlew.bat build
+.\gradlew.bat clean build
 ```
 
-The finished plugin is available at `build/libs/PendingWhitelist-<version>.jar`.
-
-Changes to plugin source, resources, or build files on `main` are released
-automatically. Documentation-only and workflow-only commits do not create a
-release. The release workflow increments the patch version from the latest `v*`
-tag, creates a Git tag, and attaches the built plugin JAR to the GitHub release.
-Manual releases can still be started with `workflow_dispatch`.
+The plugin JAR is written to `build/libs/PendingWhitelist-2.0.0.jar`.
 
 ## Install
 
 1. Stop the server.
 2. Copy the plugin JAR into the server's `plugins` directory.
-3. Start the server once to create the configuration file.
-4. Adjust `plugins/PendingWhitelist/config.yml` if needed.
+3. Start the server once.
+4. Configure `plugins/PendingWhitelist/config.yml` if required.
 
 ## Commands
 
-| Command | Description |
+| Command | Behaviour |
 | --- | --- |
-| `/wl pl [page]` | List pending players, newest first. |
-| `/wl list` | List players on the server whitelist. |
-| `/wl add <identifier> [identifier ...]` | Whitelist players and clear pending requests; also works as a `/whitelist add` replacement for names and UUIDs. |
-| `/wl remove <identifier> [identifier ...]` | Remove players from the server whitelist and pending storage. |
-| `/wl rpl <identifier> [identifier ...]` | Clear pending requests without changing the server whitelist. |
-| `/wl reload` | Reload `config.yml`. |
-| `/wl version` | Check Modrinth for the latest stable version. |
+| `/wl` | Opens the admin dashboard. |
+| `/wl add` | Opens the Add Players GUI. |
+| `/wl add <player>` | Adds the player to the server whitelist. |
+| `/wl list [page]` | Shows only whitelisted players in chat. |
+| `/wl remove` | Opens the Whitelisted Players GUI. |
+| `/wl remove <player...>` | Removes players from the server whitelist. |
+| `/wl pl [page]` | Shows only pending players in chat. |
+| `/wl rpl` | Opens the Add Players GUI. |
+| `/wl rpl <player...>` | Removes players from pending storage only. |
+| `/wl reload` | Reloads configuration and pending data. |
+| `/wl on` | Enables the server whitelist. |
+| `/wl off` | Disables the server whitelist. |
+| `/wl version` | Checks the latest stable Modrinth release. |
 
-All commands require the `pendingwhitelist.admin` permission, which defaults to server operators. An identifier can be either the stored player name or UUID.
+`/wl add` and `/wl remove` retain command-style player arguments, so they can be used as direct replacements for the corresponding whitelist commands. When no player is supplied, the Add Players or Whitelisted Players GUI is opened respectively.
+
+## GUI
+
+The dashboard contains the main administration actions:
+
+- **Add Players** — pending players first, followed by other known non-whitelisted players.
+- **Whitelisted Players** — all currently whitelisted players, with direct removal.
+- **Configure** — edit the supported plugin settings.
+- **Close** — closes the administration interface.
+
+Player GUIs use the same 6-row structure. Player entries occupy the top four rows; navigation occupies the bottom row. The back button is always in the same position. Previous/next controls and the page indicator are hidden when pagination is unnecessary.
+
+Player names are displayed once as the item title. UUIDs are included in player-head tooltips, while useful status and action information is shown in lore.
 
 ## Configuration
 
@@ -78,15 +104,23 @@ purge:
   days: 30
 ```
 
-See the [configuration guide](docs/config.md) for details.
+- `page-size` controls the chat `/wl list [page]` and `/wl pl [page]` output.
+- `purge.enabled` controls automatic cleanup of old pending requests.
+- `purge.days` controls the age at which pending requests become eligible for cleanup.
 
-## Data and storage
+The supported settings can also be changed from **/wl -> Configure** and are saved immediately.
 
-Pending requests are stored in `plugins/PendingWhitelist/pending.json`. The plugin keeps entries in memory and writes changes asynchronously. The server's `whitelist.json` remains managed by Paper; approved Bedrock entries are updated with their known Floodgate UUID and username, then Paper reloads the whitelist.
+## Data and identity handling
 
-## Update Notifications
+Pending requests are stored in `plugins/PendingWhitelist/pending.json` and written asynchronously. Paper remains responsible for the server's `whitelist.json`.
 
-When an administrator joins, PendingWhitelist checks the official Modrinth project for a newer stable release. If one is available, the administrator receives a clickable Modrinth link. Administrators can also run `/wl version` to check manually. The plugin never downloads or installs updates automatically.
+For Floodgate players, PendingWhitelist preserves the Floodgate UUID and applies the configured Floodgate username prefix when writing the whitelist entry. This avoids treating Bedrock identities as ordinary Java accounts.
+
+Skin lookups run outside the server thread. Cached textures are reused, duplicate requests share a single in-flight request, and temporary failures are backed off to avoid repeated remote requests.
+
+## Update checks
+
+When an administrator joins, PendingWhitelist checks Modrinth for a newer stable version. `/wl version` performs the same check on demand. The plugin does not download or install updates automatically.
 
 ## Documentation
 
@@ -95,14 +129,6 @@ When an administrator joins, PendingWhitelist checks the official Modrinth proje
 - [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)
 
-## Contributors
-
-<a href="https://github.com/DarkSpirit006/PendingWhitelist/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=DarkSpirit006/PendingWhitelist" alt="Project contributors" />
-</a>
-
 ## License
 
-[![License](https://img.shields.io/badge/license-MIT-2ea44f.svg?style=for-the-badge)](LICENSE)
-
-PendingWhitelist is distributed under the [MIT License](LICENSE).
+PendingWhitelist is distributed under the license included in `LICENSE`.

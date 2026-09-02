@@ -4,7 +4,8 @@ import dev.darkspirit69.pendingwhitelist.PendingWhitelistPlugin;
 import dev.darkspirit69.pendingwhitelist.storage.PendingStorage;
 import org.bukkit.scheduler.BukkitRunnable;
 
-public class PurgeTask extends BukkitRunnable {
+/** Periodically removes pending requests that have passed the configured age. */
+public final class PurgeTask extends BukkitRunnable {
 
     private final PendingWhitelistPlugin plugin;
     private final PendingStorage storage;

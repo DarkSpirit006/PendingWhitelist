@@ -1,5 +1,6 @@
 package dev.darkspirit69.pendingwhitelist.model;
 
+/** Immutable representation of one pending whitelist request. */
 public record PendingEntry(String uuid, String name, int attempts, long firstAttempt, long lastAttempt) {
 
     public String displayName() {

@@ -1,15 +1,16 @@
 package dev.darkspirit69.pendingwhitelist.command;
 
 import dev.darkspirit69.pendingwhitelist.PendingWhitelistPlugin;
+import dev.darkspirit69.pendingwhitelist.gui.WlGui;
 import dev.darkspirit69.pendingwhitelist.completion.WhitelistCompletion;
 import dev.darkspirit69.pendingwhitelist.model.PendingEntry;
 import dev.darkspirit69.pendingwhitelist.storage.PendingStorage;
 import dev.darkspirit69.pendingwhitelist.update.UpdateNotifier;
+import dev.darkspirit69.pendingwhitelist.util.SoundUtil;
 import dev.darkspirit69.pendingwhitelist.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -19,9 +20,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-public class WlCommand implements CommandExecutor, TabCompleter {
+/** Handles the /wl command while keeping the GUI and legacy command paths in one place. */
+public final class WlCommand implements CommandExecutor, TabCompleter {
 
-    private static final String ROOT_USAGE = "&cUsage: /wl <pl|list|add|remove|rpl|reload|version>";
+    private static final String ROOT_USAGE = "&cUsage: /wl <pl|list|add|remove|rpl|on|off|reload|version>";
 
     private final PendingWhitelistPlugin plugin;
     private final PendingStorage pendingStorage;
@@ -43,17 +45,19 @@ public class WlCommand implements CommandExecutor, TabCompleter {
         }
 
         if (args.length == 0) {
-            sendHelp(sender);
-            return true;
+            return openGui(sender, WlGui.View.MAIN);
         }
 
         String subcommand = args[0].toLowerCase(Locale.ROOT);
         return switch (subcommand) {
             case "pl" -> handlePendingList(sender, args);
             case "list" -> handleWhitelistedList(sender, args);
-            case "add" -> handleAdd(sender, args);
-            case "remove" -> handleRemove(sender, args);
-            case "rpl" -> handleRemovePendingOnly(sender, args);
+            case "add" -> args.length == 1 ? openGui(sender, WlGui.View.ADD) : handleAdd(sender, args);
+            case "remove" -> args.length == 1 ? openGui(sender, WlGui.View.WHITELISTED) : handleRemove(sender, args);
+            case "rpl" -> args.length == 1 ? openGui(sender, WlGui.View.ADD)
+                    : handleRemovePendingOnly(sender, args);
+            case "on" -> handleWhitelistToggle(sender, args, true);
+            case "off" -> handleWhitelistToggle(sender, args, false);
             case "reload" -> handleReload(sender, args);
             case "version" -> handleVersion(sender, args);
             default -> {
@@ -65,13 +69,31 @@ public class WlCommand implements CommandExecutor, TabCompleter {
         };
     }
 
+    private boolean openGui(CommandSender sender, WlGui.View view) {
+        if (!(sender instanceof org.bukkit.entity.Player player)) {
+            TextUtil.send(sender, "&cThis command must be used by a player when opening the GUI.");
+            return true;
+        }
+
+        WlGui gui = new WlGui(plugin, pendingStorage, updateNotifier);
+        switch (view) {
+            case MAIN -> gui.openMain(player);
+            case WHITELISTED -> gui.openWhitelisted(player, false);
+            case ADD -> gui.openAdd(player);
+            case CONFIG -> gui.openConfig(player);
+        }
+        return true;
+    }
+
     private void sendHelp(CommandSender sender) {
         TextUtil.send(sender, "&8&m--------&r &6PendingWhitelist &8&m--------");
         TextUtil.send(sender, "&e/wl pl [page] &7- View pending players");
-        TextUtil.send(sender, "&e/wl list &7- View whitelisted players");
-        TextUtil.send(sender, "&e/wl add <name...> &7- Whitelist pending players");
-        TextUtil.send(sender, "&e/wl remove <name...> &7- Remove from whitelist and pending");
-        TextUtil.send(sender, "&e/wl rpl <name...> &7- Remove only from pending");
+        TextUtil.send(sender, "&e/wl list [page] &7- View whitelisted players");
+        TextUtil.send(sender, "&e/wl add <name...> &7- Add players to the server whitelist");
+        TextUtil.send(sender, "&e/wl remove <name...> &7- Remove players from the server whitelist");
+        TextUtil.send(sender, "&e/wl rpl <name...> &7- Reject/remove pending requests");
+        TextUtil.send(sender, "&e/wl on &7- Enable the server whitelist");
+        TextUtil.send(sender, "&e/wl off &7- Disable the server whitelist");
         TextUtil.send(sender, "&e/wl reload &7- Reload the config");
         TextUtil.send(sender, "&e/wl version &7- Check the latest Modrinth version");
     }
@@ -92,14 +114,9 @@ public class WlCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        int page = 1;
-        if (args.length == 2) {
-            try {
-                page = Integer.parseInt(args[1]);
-            } catch (NumberFormatException ex) {
-                TextUtil.send(sender, "&cPage must be a number.");
-                return true;
-            }
+        int page = parsePage(sender, args, "/wl pl [page]");
+        if (page < 1) {
+            return true;
         }
 
         List<PendingEntry> entries = pendingStorage.getPendingEntriesSortedByRecencyDesc();
@@ -109,47 +126,52 @@ public class WlCommand implements CommandExecutor, TabCompleter {
         }
 
         int pageSize = plugin.getConfiguredPageSize();
-        int totalPages = Math.max(1, (int) Math.ceil(entries.size() / (double) pageSize));
-        if (page < 1) {
-            page = 1;
-        }
-        if (page > totalPages) {
-            page = totalPages;
-        }
-
+        int totalPages = pageCount(entries.size(), pageSize);
+        page = clampPage(page, totalPages);
         int start = (page - 1) * pageSize;
         int end = Math.min(start + pageSize, entries.size());
+
         TextUtil.send(sender, "&8&m--------&r &6Pending players &7(" + entries.size() + ") &8&m--------");
         TextUtil.send(sender, "&7Page &f" + page + "&7/&f" + totalPages);
         for (int i = start; i < end; i++) {
             PendingEntry entry = entries.get(i);
-            String displayName = entry.displayName();
-            String uuidText = entry.uuid() != null && !entry.uuid().isBlank() ? entry.uuid() : "unknown";
-
-            if (sender instanceof org.bukkit.entity.Player player) {
-                Component hover = Component.text()
-                        .append(Component.text("Player: ", NamedTextColor.GRAY))
-                        .append(Component.text(displayName, NamedTextColor.WHITE))
-                        .append(Component.newline())
-                        .append(Component.text("UUID: ", NamedTextColor.GRAY))
-                        .append(Component.text(uuidText, NamedTextColor.WHITE))
-                        .append(Component.newline())
-                        .append(Component.text("Attempts: ", NamedTextColor.GRAY))
-                        .append(Component.text(String.valueOf(entry.attempts()), NamedTextColor.WHITE))
-                        .build();
-                Component message = Component.text("• ", NamedTextColor.GOLD)
-                        .append(Component.text(displayName, NamedTextColor.WHITE));
-                player.sendMessage(message.hoverEvent(HoverEvent.showText(hover)));
-            } else {
-                TextUtil.send(sender, "&8- &f" + displayName);
-            }
+            sendPendingListLine(sender, entry);
         }
+        sendPageNavigation(sender, "/wl pl", page, totalPages, NamedTextColor.GOLD);
         return true;
     }
 
+    private void sendPendingListLine(CommandSender sender, PendingEntry entry) {
+        String displayName = entry.displayName();
+        String uuidText = entry.uuid() != null && !entry.uuid().isBlank() ? entry.uuid() : "unknown";
+
+        if (sender instanceof org.bukkit.entity.Player player) {
+            Component hover = Component.text()
+                    .append(Component.text("Player: ", NamedTextColor.GRAY))
+                    .append(Component.text(displayName, NamedTextColor.WHITE))
+                    .append(Component.newline())
+                    .append(Component.text("UUID: ", NamedTextColor.GRAY))
+                    .append(Component.text(uuidText, NamedTextColor.WHITE))
+                    .append(Component.newline())
+                    .append(Component.text("Attempts: ", NamedTextColor.GRAY))
+                    .append(Component.text(String.valueOf(entry.attempts()), NamedTextColor.WHITE))
+                    .build();
+            player.sendMessage(Component.text("• ", NamedTextColor.GOLD)
+                    .append(Component.text(displayName, NamedTextColor.WHITE))
+                    .hoverEvent(HoverEvent.showText(hover)));
+        } else {
+            TextUtil.send(sender, "&8- &f" + displayName);
+        }
+    }
+
     private boolean handleWhitelistedList(CommandSender sender, String[] args) {
-        if (args.length != 1) {
-            TextUtil.send(sender, "&cUsage: /wl list");
+        if (args.length > 2) {
+            TextUtil.send(sender, "&cUsage: /wl list [page]");
+            return true;
+        }
+
+        int page = parsePage(sender, args, "/wl list [page]");
+        if (page < 1) {
             return true;
         }
 
@@ -159,27 +181,117 @@ public class WlCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        int pageSize = plugin.getConfiguredPageSize();
+        int totalPages = pageCount(whitelisted.size(), pageSize);
+        page = clampPage(page, totalPages);
+        int start = (page - 1) * pageSize;
+        int end = Math.min(start + pageSize, whitelisted.size());
+
         TextUtil.send(sender, "&8&m--------&r &6Whitelisted players &7(" + whitelisted.size() + ") &8&m--------");
-        for (String name : whitelisted) {
+        TextUtil.send(sender, "&7Page &f" + page + "&7/&f" + totalPages);
+        for (int i = start; i < end; i++) {
+            sendWhitelistedListLine(sender, whitelisted.get(i));
+        }
+        sendPageNavigation(sender, "/wl list", page, totalPages, NamedTextColor.GREEN);
+        return true;
+    }
+
+    private void sendWhitelistedListLine(CommandSender sender, String name) {
+        if (sender instanceof org.bukkit.entity.Player player) {
+            String uuid = pendingStorage.resolveWhitelistedUuid(name);
+            Component hover = Component.text()
+                    .append(Component.text("Player: ", NamedTextColor.GRAY))
+                    .append(Component.text(name, NamedTextColor.WHITE))
+                    .append(Component.newline())
+                    .append(Component.text("UUID: ", NamedTextColor.GRAY))
+                    .append(Component.text(uuid == null ? "unknown" : uuid, NamedTextColor.WHITE))
+                    .append(Component.newline())
+                    .append(Component.text("Status: ", NamedTextColor.GRAY))
+                    .append(Component.text("Whitelisted", NamedTextColor.GREEN))
+                    .build();
+            player.sendMessage(Component.text("• ", NamedTextColor.GREEN)
+                    .append(Component.text(name, NamedTextColor.WHITE)
+                            .hoverEvent(HoverEvent.showText(hover))));
+        } else {
+            TextUtil.send(sender, "&8- &f" + name);
+        }
+    }
+
+    private void sendPageNavigation(CommandSender sender, String command, int page, int totalPages,
+            NamedTextColor color) {
+        if (!(sender instanceof org.bukkit.entity.Player player) || totalPages <= 1) {
+            return;
+        }
+
+        Component navigation = Component.empty();
+        if (page > 1) {
+            navigation = navigation.append(Component.text("[‹ Previous]", color)
+                    .clickEvent(net.kyori.adventure.text.event.ClickEvent.runCommand(command + " " + (page - 1)))
+                    .hoverEvent(HoverEvent.showText(Component.text("Go to page " + (page - 1)))));
+        }
+        if (page > 1 && page < totalPages) {
+            navigation = navigation.append(Component.text("  ", NamedTextColor.DARK_GRAY));
+        }
+        if (page < totalPages) {
+            navigation = navigation.append(Component.text("[Next ›]", color)
+                    .clickEvent(net.kyori.adventure.text.event.ClickEvent.runCommand(command + " " + (page + 1)))
+                    .hoverEvent(HoverEvent.showText(Component.text("Go to page " + (page + 1)))));
+        }
+        if (!navigation.equals(Component.empty())) {
+            player.sendMessage(navigation);
+        }
+    }
+
+    private int parsePage(CommandSender sender, String[] args, String usage) {
+        if (args.length == 1) {
+            return 1;
+        }
+        try {
+            return Integer.parseInt(args[1]);
+        } catch (NumberFormatException ex) {
+            TextUtil.send(sender, "&cPage must be a number.");
+            TextUtil.send(sender, "&7Usage: " + usage);
+            return -1;
+        }
+    }
+
+    private int pageCount(int size, int pageSize) {
+        return Math.max(1, (size + pageSize - 1) / pageSize);
+    }
+
+    private int clampPage(int page, int totalPages) {
+        return Math.max(1, Math.min(page, totalPages));
+    }
+
+    private boolean handleWhitelistToggle(CommandSender sender, String[] args, boolean enabled) {
+        if (args.length != 1) {
+            TextUtil.send(sender, "&cUsage: /wl " + (enabled ? "on" : "off"));
+            return true;
+        }
+
+        boolean currentlyEnabled = plugin.getServer().hasWhitelist();
+        if (currentlyEnabled == enabled) {
+            TextUtil.send(sender, enabled ? "&eWhitelist is already enabled." : "&eWhitelist is already disabled.");
             if (sender instanceof org.bukkit.entity.Player player) {
-                Component hover = Component.text()
-                        .append(Component.text("Player: ", NamedTextColor.GRAY))
-                        .append(Component.text(name, NamedTextColor.WHITE))
-                        .append(Component.newline())
-                        .append(Component.text("Status: ", NamedTextColor.GRAY))
-                        .append(Component.text("Whitelisted", NamedTextColor.GREEN))
-                        .build();
-                player.sendMessage(Component.text("• ", NamedTextColor.GREEN)
-                        .append(Component.text(name, NamedTextColor.WHITE).hoverEvent(HoverEvent.showText(hover))));
-            } else {
-                TextUtil.send(sender, "&8- &f" + name);
+                SoundUtil.failure(player);
             }
+            return true;
+        }
+
+        plugin.getServer().setWhitelist(enabled);
+        TextUtil.send(sender, enabled ? "&aWhitelist enabled." : "&eWhitelist disabled.");
+        if (sender instanceof org.bukkit.entity.Player player) {
+            SoundUtil.success(player);
         }
         return true;
     }
 
     private boolean handleAdd(CommandSender sender, String[] args) {
         if (args.length < 2) {
+            if (sender instanceof org.bukkit.entity.Player player) {
+                new WlGui(plugin, pendingStorage, updateNotifier).openAdd(player);
+                return true;
+            }
             TextUtil.send(sender, "&cUsage: /wl add <username> [username ...]");
             return true;
         }
@@ -189,53 +301,29 @@ public class WlCommand implements CommandExecutor, TabCompleter {
 
         for (int i = 1; i < args.length; i++) {
             String username = args[i];
-            if (pendingStorage.isPending(username)) {
-                PendingEntry pendingEntry = pendingStorage.findPendingEntry(username);
-                boolean addedToWhitelist = pendingEntry != null
-                        && pendingStorage.isFloodgateUuid(pendingEntry.uuid())
-                                ? addFloodgatePlayerToWhitelist(pendingEntry, username)
-                                : pendingStorage.addToWhitelist(username);
-                pendingStorage.removePendingOnly(username);
-                if (addedToWhitelist) {
-                    added.add(username);
-                } else {
-                    alreadyWhitelisted.add(username);
+            PendingEntry pendingEntry = pendingStorage.findPendingEntry(username);
+            boolean addedToWhitelist = pendingStorage.addToWhitelist(username);
+            if (addedToWhitelist) {
+                added.add(username);
+                if (pendingEntry != null) {
+                    pendingStorage.removePendingOnly(username);
                 }
-            } else {
-                org.bukkit.OfflinePlayer offlinePlayer;
-                try {
-                    offlinePlayer = Bukkit.getOfflinePlayer(java.util.UUID.fromString(username));
-                } catch (IllegalArgumentException ignored) {
-                    offlinePlayer = Bukkit.getOfflinePlayer(username);
-                }
-                if (offlinePlayer.isWhitelisted()) {
-                    alreadyWhitelisted.add(username);
-                } else {
-                    offlinePlayer.setWhitelisted(true);
-                    added.add(username);
-                }
+            } else if (pendingStorage.isWhitelisted(username)) {
+                alreadyWhitelisted.add(username);
             }
         }
 
         sendResultGroup(sender, "&a✓ Added", added, "✔", NamedTextColor.GREEN, "whitelisted");
         sendResultGroup(sender, "&e• Already whitelisted", alreadyWhitelisted, "•", NamedTextColor.YELLOW,
                 "already whitelisted");
+        if (sender instanceof org.bukkit.entity.Player player) {
+            if (!added.isEmpty()) {
+                SoundUtil.success(player);
+            } else if (!alreadyWhitelisted.isEmpty()) {
+                SoundUtil.failure(player);
+            }
+        }
         return true;
-    }
-
-    private boolean addFloodgatePlayerToWhitelist(PendingEntry entry, String identifier) {
-        String username = entry.name();
-        if (username == null || username.isBlank()) {
-            plugin.getLogger().warning("Pending Floodgate entry for " + identifier + " has no username.");
-            return false;
-        }
-
-        try {
-            return pendingStorage.addFloodgatePlayerToWhitelist(java.util.UUID.fromString(entry.uuid()), username);
-        } catch (IllegalArgumentException ex) {
-            plugin.getLogger().warning("Pending Floodgate entry for " + identifier + " has an invalid UUID.");
-            return false;
-        }
     }
 
     private boolean handleRemove(CommandSender sender, String[] args) {
@@ -249,7 +337,7 @@ public class WlCommand implements CommandExecutor, TabCompleter {
 
         for (int i = 1; i < args.length; i++) {
             String identifier = args[i];
-            if (pendingStorage.remove(identifier)) {
+            if (pendingStorage.removeFromWhitelist(identifier)) {
                 removed.add(identifier);
             } else {
                 notFound.add(identifier);
@@ -258,6 +346,13 @@ public class WlCommand implements CommandExecutor, TabCompleter {
 
         sendResultGroup(sender, "&a✓ Removed", removed, "✔", NamedTextColor.GREEN, "removed");
         sendResultGroup(sender, "&c✖ Not found", notFound, "•", NamedTextColor.RED, "not found");
+        if (sender instanceof org.bukkit.entity.Player player) {
+            if (!removed.isEmpty()) {
+                SoundUtil.success(player);
+            } else if (!notFound.isEmpty()) {
+                SoundUtil.failure(player);
+            }
+        }
         return true;
     }
 
@@ -281,6 +376,13 @@ public class WlCommand implements CommandExecutor, TabCompleter {
         sendResultGroup(sender, "&a✓ Removed from pending list", removed, "✔", NamedTextColor.GREEN,
                 "removed from pending");
         sendResultGroup(sender, "&c✖ Not found in pending list", notFound, "•", NamedTextColor.RED, "not found");
+        if (sender instanceof org.bukkit.entity.Player player) {
+            if (!removed.isEmpty()) {
+                SoundUtil.success(player);
+            } else if (!notFound.isEmpty()) {
+                SoundUtil.failure(player);
+            }
+        }
         return true;
     }
 

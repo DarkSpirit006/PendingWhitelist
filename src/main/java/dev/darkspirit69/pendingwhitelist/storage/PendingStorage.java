@@ -7,28 +7,29 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
-import com.google.gson.reflect.TypeToken;
 import dev.darkspirit69.pendingwhitelist.PendingWhitelistPlugin;
 import dev.darkspirit69.pendingwhitelist.model.PendingEntry;
 import dev.darkspirit69.pendingwhitelist.scheduler.PurgeTask;
+import dev.darkspirit69.pendingwhitelist.util.FloodgateUtil;
+import dev.darkspirit69.pendingwhitelist.util.SoundUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.entity.Player;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -36,41 +37,41 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-public class PendingStorage {
+/** Owns pending data and the whitelist identity handling used by commands and GUIs. */
+public final class PendingStorage {
 
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final String ADMIN_PERMISSION = "pendingwhitelist.admin";
+    private static final String PLAYER_NAME_PATTERN = "[A-Za-z0-9_]{3,16}";
+    private static final long[] WHITELIST_REPAIR_DELAYS_TICKS = {2L, 20L, 60L, 120L, 200L, 300L, 400L, 600L};
 
     private final PendingWhitelistPlugin plugin;
-    private final Path storageFile;
+    private final PendingFileStore fileStore;
     private final List<PendingEntry> pending = new ArrayList<>();
     private final ExecutorService saveExecutor;
+    private final ExecutorService whitelistRepairExecutor;
+    private final Map<UUID, String> pendingWhitelistRepairs = new ConcurrentHashMap<>();
+    private final Set<UUID> scheduledWhitelistRepairs = ConcurrentHashMap.newKeySet();
+    private final Map<UUID, String> knownWhitelistNames = new ConcurrentHashMap<>();
 
     public PendingStorage(PendingWhitelistPlugin plugin) {
         this.plugin = plugin;
-        this.storageFile = plugin.getDataFolder().toPath().resolve("pending.json");
+        this.fileStore = new PendingFileStore(plugin.getDataFolder().toPath().resolve("pending.json"));
         this.saveExecutor = Executors.newSingleThreadExecutor(runnable -> {
             Thread thread = new Thread(runnable, "PendingWhitelist-Storage");
             thread.setDaemon(true);
             return thread;
         });
+        this.whitelistRepairExecutor = Executors.newSingleThreadExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "PendingWhitelist-WhitelistRepair");
+            thread.setDaemon(true);
+            return thread;
+        });
+        loadKnownWhitelistNames();
     }
 
     public void loadFromDisk() {
         try {
-            if (!Files.exists(storageFile)) {
-                Files.createDirectories(storageFile.getParent());
-                Files.writeString(storageFile, "[]", StandardCharsets.UTF_8, StandardOpenOption.CREATE,
-                        StandardOpenOption.TRUNCATE_EXISTING);
-                return;
-            }
-
-            String contents = Files.readString(storageFile, StandardCharsets.UTF_8);
-            if (contents == null || contents.isBlank()) {
-                pending.clear();
-                return;
-            }
-
-            List<PendingEntry> loaded = parseEntries(contents);
+            List<PendingEntry> loaded = fileStore.load();
             List<PendingEntry> enriched = enrichEntriesWithResolvedNames(loaded);
             pending.clear();
             pending.addAll(enriched);
@@ -80,109 +81,39 @@ public class PendingStorage {
         } catch (IOException | JsonParseException ex) {
             plugin.getLogger().warning("Failed to read pending.json: " + ex.getMessage());
             pending.clear();
-            if (!Files.exists(storageFile)) {
-                try {
-                    Files.createDirectories(storageFile.getParent());
-                    Files.writeString(storageFile, "[]", StandardCharsets.UTF_8, StandardOpenOption.CREATE,
-                            StandardOpenOption.TRUNCATE_EXISTING);
-                } catch (IOException ioException) {
-                    plugin.getLogger().warning("Failed to recreate pending.json: " + ioException.getMessage());
-                }
-            }
         }
-    }
-
-    private List<PendingEntry> parseEntries(String contents) {
-        JsonElement element = JsonParser.parseString(contents);
-        if (element == null || element.isJsonNull()) {
-            return List.of();
-        }
-
-        if (element.isJsonArray()) {
-            List<PendingEntry> entries = new ArrayList<>();
-            for (JsonElement child : element.getAsJsonArray()) {
-                if (!child.isJsonObject()) {
-                    continue;
-                }
-                JsonObject object = child.getAsJsonObject();
-                String uuid = normalizeIdentifier(getString(object, "uuid"));
-                String name = normalizeIdentifier(getString(object, "name"));
-                int attempts = object.has("attempts") ? object.get("attempts").getAsInt() : 0;
-                long firstAttempt = object.has("firstAttempt") ? object.get("firstAttempt").getAsLong() : 0L;
-                long lastAttempt = object.has("lastAttempt") ? object.get("lastAttempt").getAsLong() : 0L;
-                entries.add(new PendingEntry(uuid, name, attempts, firstAttempt, lastAttempt));
-            }
-            return entries;
-        }
-
-        if (element.isJsonObject()) {
-            Map<String, PendingEntry> legacy = GSON.fromJson(contents,
-                    new TypeToken<Map<String, PendingEntry>>() {
-                    }.getType());
-            if (legacy == null) {
-                return List.of();
-            }
-
-            List<PendingEntry> entries = new ArrayList<>();
-            for (Map.Entry<String, PendingEntry> legacyEntry : legacy.entrySet()) {
-                PendingEntry value = legacyEntry.getValue();
-                if (value == null) {
-                    continue;
-                }
-                entries.add(new PendingEntry(
-                        value.uuid(),
-                        legacyEntry.getKey(),
-                        value.attempts(),
-                        value.firstAttempt(),
-                        value.lastAttempt()));
-            }
-            return entries;
-        }
-
-        return List.of();
-    }
-
-    private String getString(JsonObject object, String key) {
-        JsonElement element = object.get(key);
-        if (element == null || element.isJsonNull()) {
-            return null;
-        }
-        return element.getAsString();
     }
 
     public void recordAttempt(String username, UUID uuid) {
         long now = Instant.now().toEpochMilli();
         String normalizedUsername = normalizeIdentifier(username);
         PendingEntry existing = findMatchingEntry(normalizedUsername, uuid);
-        String resolvedName = resolveDisplayName(normalizedUsername, uuid, existing);
-        String persistedName = resolvedName != null && !resolvedName.isBlank() ? resolvedName
-                : (normalizedUsername != null ? normalizedUsername : null);
+        String persistedName = resolveDisplayName(normalizedUsername, uuid, existing);
+        int attempts = existing == null ? 1 : existing.attempts() + 1;
 
         if (existing != null) {
             pending.remove(existing);
-            pending.add(new PendingEntry(
-                    uuid != null ? uuid.toString() : existing.uuid(),
-                    persistedName,
-                    existing.attempts() + 1,
-                    existing.firstAttempt(),
-                    now));
-        } else {
-            pending.add(new PendingEntry(
-                    uuid != null ? uuid.toString() : null,
-                    persistedName,
-                    1,
-                    now,
-                    now));
         }
+        pending.add(new PendingEntry(
+                uuid != null ? uuid.toString() : existingUuid(existing),
+                persistedName,
+                attempts,
+                existing == null ? now : existing.firstAttempt(),
+                now));
 
-        notifyAdmins(username, uuid, persistedName, existing != null ? existing.attempts() + 1 : 1);
+        notifyAdmins(username, uuid, persistedName, attempts);
         scheduleSave();
+    }
+
+    private String existingUuid(PendingEntry entry) {
+        return entry == null ? null : entry.uuid();
     }
 
     private PendingEntry findMatchingEntry(String username, UUID uuid) {
         if (uuid != null) {
+            String uuidString = uuid.toString();
             for (PendingEntry entry : pending) {
-                if (uuid.toString().equalsIgnoreCase(entry.uuid())) {
+                if (uuidString.equalsIgnoreCase(entry.uuid())) {
                     return entry;
                 }
             }
@@ -195,203 +126,204 @@ public class PendingStorage {
                 }
             }
         }
-
         return null;
     }
 
     private String resolveDisplayName(String username, UUID uuid, PendingEntry existing) {
         String resolvedName = normalizeIdentifier(username);
-        if (resolvedName == null && uuid != null) {
-            try {
-                org.bukkit.entity.Player livePlayer = Bukkit.getPlayer(uuid);
-                if (livePlayer != null) {
-                    resolvedName = normalizeIdentifier(livePlayer.getName());
-                }
-            } catch (Exception ignored) {
+        if (resolvedName == null) {
+            FloodgateUtil.Identity identity = FloodgateUtil.resolveOnlineIdentity(uuid);
+            if (identity != null) {
+                resolvedName = identity.username();
             }
         }
-        if (resolvedName == null && uuid != null) {
-            try {
-                OfflinePlayer player = Bukkit.getOfflinePlayer(uuid);
-                resolvedName = normalizeIdentifier(player.getName());
-            } catch (Exception ignored) {
-            }
+        if (resolvedName == null) {
+            resolvedName = resolvePlayerName(uuid);
         }
         if (resolvedName == null && existing != null) {
             resolvedName = normalizeIdentifier(existing.name());
         }
-        if (resolvedName == null && uuid != null) {
-            return uuid.toString();
+        return firstNonBlank(resolvedName, uuid == null ? null : uuid.toString(), "unknown");
+    }
+
+    private String resolvePlayerName(UUID uuid) {
+        if (uuid == null) {
+            return null;
         }
-        return resolvedName;
+
+        Player livePlayer = Bukkit.getPlayer(uuid);
+        if (livePlayer != null) {
+            return normalizeIdentifier(livePlayer.getName());
+        }
+
+        return normalizeIdentifier(Bukkit.getOfflinePlayer(uuid).getName());
     }
 
     private void notifyAdmins(String username, UUID uuid, String resolvedName, int attempts) {
-        String displayName = resolvedName != null && !resolvedName.isBlank() ? resolvedName
-                : (username != null && !username.isBlank() ? username : "unknown");
-        String identifier = uuid != null ? uuid.toString() : displayName;
+        String displayName = firstNonBlank(resolvedName, username, "unknown");
+        String identifier = uuid == null ? displayName : uuid.toString();
         String commandIdentifier = isPlayerName(resolvedName) ? resolvedName
                 : (isPlayerName(username) ? username : identifier);
 
         Component hover = Component.text()
                 .append(Component.text("UUID: ", NamedTextColor.GRAY))
-                .append(Component.text(uuid != null ? uuid.toString() : "unknown", NamedTextColor.WHITE))
+                .append(Component.text(uuid == null ? "unknown" : uuid.toString(), NamedTextColor.WHITE))
                 .append(Component.newline())
                 .append(Component.text("Attempts: ", NamedTextColor.GRAY))
                 .append(Component.text(String.valueOf(attempts), NamedTextColor.WHITE))
                 .build();
 
-        Component add = Component.text("[WHITELIST]", NamedTextColor.GREEN)
-                .clickEvent(ClickEvent.runCommand("/wl add " + commandIdentifier))
-                .hoverEvent(HoverEvent.showText(
-                        Component.text("Run /wl add " + commandIdentifier, NamedTextColor.GREEN)));
-        Component removePending = Component.text("[REMOVE PENDING]", NamedTextColor.RED)
-                .clickEvent(ClickEvent.runCommand("/wl rpl " + commandIdentifier))
-                .hoverEvent(HoverEvent.showText(
-                        Component.text("Run /wl rpl " + commandIdentifier, NamedTextColor.RED)));
-
-        Component message = Component.text()
-                .append(Component.text("[PendingWhitelist] ", NamedTextColor.GOLD))
+        Component whitelist = action("[WHITELIST]", NamedTextColor.GREEN,
+                "/wl add " + commandIdentifier, "Whitelist this player");
+        Component reject = action("[REJECT]", NamedTextColor.RED,
+                "/wl rpl " + commandIdentifier, "Remove this player from pending");
+        Component open = action("[OPEN GUI]", NamedTextColor.AQUA,
+                "/wl add", "Open the pending-player GUI");
+        Component message = Component.text("[PendingWhitelist] ", NamedTextColor.GOLD)
                 .append(Component.text(displayName, NamedTextColor.YELLOW))
                 .append(Component.text(" is waiting for whitelist review", NamedTextColor.GRAY))
                 .append(Component.newline())
                 .append(Component.text("Actions: ", NamedTextColor.GRAY))
-                .append(add)
-                .append(Component.text("  "))
-                .append(removePending)
-                .build();
+                .append(whitelist)
+                .append(Component.space())
+                .append(reject)
+                .append(Component.space())
+                .append(open)
+                .hoverEvent(HoverEvent.showText(hover));
 
-        for (org.bukkit.entity.Player player : Bukkit.getOnlinePlayers()) {
-            if (player.hasPermission("pendingwhitelist.admin")) {
-                player.sendMessage(message.hoverEvent(HoverEvent.showText(hover)));
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (player == null) {
+                continue;
+            }
+            if (player.hasPermission(ADMIN_PERMISSION)) {
+                player.sendMessage(message);
+                SoundUtil.notification(player);
             }
         }
+    }
+
+    private Component action(String label, NamedTextColor color, String command, String hoverText) {
+        return Component.text(label, color)
+                .clickEvent(ClickEvent.runCommand(command))
+                .hoverEvent(HoverEvent.showText(Component.text(hoverText, color)));
+    }
+
+    private String firstNonBlank(String first, String second, String fallback) {
+        if (first != null && !first.isBlank()) {
+            return first;
+        }
+        if (second != null && !second.isBlank()) {
+            return second;
+        }
+        return fallback;
     }
 
     private String normalizeIdentifier(String value) {
         if (value == null) {
             return null;
         }
-        String trimmed = value.trim();
-        return trimmed.isEmpty() ? null : trimmed;
+        String normalized = value.trim();
+        return normalized.isEmpty() ? null : normalized;
     }
 
     private boolean isPlayerName(String value) {
-        return value != null && value.matches("[A-Za-z0-9_]{3,16}");
+        return value != null && value.matches(PLAYER_NAME_PATTERN);
+    }
+
+    private boolean isStoredWhitelistName(String value) {
+        if (value == null || value.isBlank() || value.length() > 64) {
+            return false;
+        }
+        for (int index = 0; index < value.length(); index++) {
+            if (Character.isISOControl(value.charAt(index))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private List<PendingEntry> enrichEntriesWithResolvedNames(List<PendingEntry> entries) {
-        List<PendingEntry> enriched = new ArrayList<>();
+        List<PendingEntry> enriched = new ArrayList<>(entries.size());
         for (PendingEntry entry : entries) {
-            if (entry.name() != null && !entry.name().isBlank()) {
-                enriched.add(entry);
-                continue;
+            String resolvedName = entry.name();
+            UUID uuid = parseUuid(entry.uuid());
+            if ((resolvedName == null || resolvedName.isBlank()) && uuid != null) {
+                resolvedName = resolvePlayerName(uuid);
             }
-
-            String resolvedName = null;
-            if (entry.uuid() != null && !entry.uuid().isBlank()) {
-                try {
-                    UUID uuid = UUID.fromString(entry.uuid());
-                    resolvedName = resolveStoredName(uuid);
-                } catch (IllegalArgumentException ignored) {
-                }
-            }
-
             if (resolvedName == null) {
                 resolvedName = entry.uuid();
             }
-
-            enriched.add(new PendingEntry(entry.uuid(), resolvedName, entry.attempts(), entry.firstAttempt(),
-                    entry.lastAttempt()));
+            if (resolvedName.equals(entry.name())) {
+                enriched.add(entry);
+            } else {
+                enriched.add(new PendingEntry(entry.uuid(), resolvedName, entry.attempts(),
+                        entry.firstAttempt(), entry.lastAttempt()));
+            }
         }
         return enriched;
     }
 
-    private String resolveStoredName(UUID uuid) {
-        if (uuid == null) {
-            return null;
-        }
-
-        try {
-            org.bukkit.entity.Player livePlayer = Bukkit.getPlayer(uuid);
-            if (livePlayer != null) {
-                return normalizeIdentifier(livePlayer.getName());
-            }
-        } catch (Exception ignored) {
-        }
-
-        try {
-            OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(uuid);
-            return normalizeIdentifier(offlinePlayer.getName());
-        } catch (Exception ignored) {
-        }
-
-        return null;
-    }
-
-    public boolean remove(String identifier) {
+    public boolean removeFromWhitelist(String identifier) {
         String normalizedIdentifier = normalizeIdentifier(identifier);
         if (normalizedIdentifier == null) {
             return false;
         }
 
-        boolean changed = false;
+        UUID resolvedUuid = resolveWhitelistUuid(normalizedIdentifier);
+        if (FloodgateUtil.isFloodgateId(resolvedUuid)) {
+            OfflinePlayer player = Bukkit.getOfflinePlayer(resolvedUuid);
+            if (!player.isWhitelisted()) {
+                return false;
+            }
+            player.setWhitelisted(false);
+            return true;
+        }
+
+        PendingEntry pendingEntry = findPendingEntry(normalizedIdentifier);
+        UUID pendingUuid = pendingEntry == null ? null : parseUuid(pendingEntry.uuid());
+        return removeWhitelistMatches(normalizedIdentifier, pendingUuid);
+    }
+
+    private List<PendingEntry> findAllMatches(String identifier) {
         List<PendingEntry> matches = new ArrayList<>();
         for (PendingEntry entry : pending) {
-            if (entry.matchesIdentifier(normalizedIdentifier)) {
+            if (entry.matchesIdentifier(identifier)) {
                 matches.add(entry);
             }
         }
-        if (!matches.isEmpty()) {
-            pending.removeAll(matches);
-            changed = true;
-        }
+        return matches;
+    }
 
-        // A Geyser/Floodgate player can have a whitelist entry under its Bedrock
-        // UUID while the command is given its username (or vice versa). Remove
-        // every matching entry instead of relying on one OfflinePlayer lookup.
-        List<OfflinePlayer> whitelistMatches = new ArrayList<>();
-        PendingEntry pendingMatch = matches.isEmpty() ? findMatchingEntry(normalizedIdentifier, null) : matches.get(0);
-        UUID pendingUuid = pendingMatch != null ? parseUuid(pendingMatch.uuid()) : null;
-        UUID identifierUuid = parseUuid(normalizedIdentifier);
-        for (OfflinePlayer whitelistedPlayer : Bukkit.getWhitelistedPlayers()) {
-            String whitelistedName = normalizeIdentifier(whitelistedPlayer.getName());
-            boolean uuidMatches = identifierUuid != null && identifierUuid.equals(whitelistedPlayer.getUniqueId());
-            boolean pendingUuidMatches = pendingUuid != null && pendingUuid.equals(whitelistedPlayer.getUniqueId());
-            boolean nameMatches = whitelistedName != null && whitelistedName.equalsIgnoreCase(normalizedIdentifier);
-            if (uuidMatches || pendingUuidMatches || nameMatches) {
-                whitelistMatches.add(whitelistedPlayer);
+    private boolean removeWhitelistMatches(String identifier, UUID pendingUuid) {
+        UUID identifierUuid = parseUuid(identifier);
+        List<OfflinePlayer> matches = new ArrayList<>();
+        for (OfflinePlayer player : Bukkit.getWhitelistedPlayers()) {
+            if (matchesWhitelistPlayer(player, identifier, identifierUuid, pendingUuid)) {
+                matches.add(player);
             }
         }
 
-        // Include the normal lookup as a fallback for servers whose API does
-        // not expose a useful saved name in getWhitelistedPlayers().
-        OfflinePlayer resolved = resolveOfflinePlayer(normalizedIdentifier);
-        if (resolved != null && resolved.isWhitelisted() && !whitelistMatches.contains(resolved)) {
-            whitelistMatches.add(resolved);
+        OfflinePlayer resolved = resolveOfflinePlayer(identifier);
+        if (resolved != null && resolved.isWhitelisted() && !matches.contains(resolved)) {
+            matches.add(resolved);
         }
-        for (OfflinePlayer whitelistedPlayer : whitelistMatches) {
-            if (whitelistedPlayer.isWhitelisted()) {
-                whitelistedPlayer.setWhitelisted(false);
+
+        boolean changed = false;
+        for (OfflinePlayer player : matches) {
+            if (player.isWhitelisted()) {
+                player.setWhitelisted(false);
                 changed = true;
             }
-        }
-
-        if (changed) {
-            scheduleSave();
         }
         return changed;
     }
 
-    private UUID parseUuid(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        try {
-            return UUID.fromString(value);
-        } catch (IllegalArgumentException ignored) {
-            return null;
-        }
+    private boolean matchesWhitelistPlayer(OfflinePlayer player, String identifier,
+            UUID identifierUuid, UUID pendingUuid) {
+        String name = normalizeIdentifier(player.getName());
+        return (identifierUuid != null && identifierUuid.equals(player.getUniqueId()))
+                || (pendingUuid != null && pendingUuid.equals(player.getUniqueId()))
+                || (name != null && name.equalsIgnoreCase(identifier));
     }
 
     public boolean removePendingOnly(String identifier) {
@@ -400,194 +332,467 @@ public class PendingStorage {
             return false;
         }
 
-        List<PendingEntry> matches = new ArrayList<>();
-        for (PendingEntry entry : pending) {
-            if (entry.matchesIdentifier(normalizedIdentifier)) {
-                matches.add(entry);
-            }
-        }
+        List<PendingEntry> matches = findAllMatches(normalizedIdentifier);
         if (matches.isEmpty()) {
             return false;
         }
-
         pending.removeAll(matches);
         scheduleSave();
         return true;
     }
 
+    public boolean isWhitelisted(String identifier) {
+        String normalizedIdentifier = normalizeIdentifier(identifier);
+        if (normalizedIdentifier == null) {
+            return false;
+        }
+        UUID resolvedUuid = resolveWhitelistUuid(normalizedIdentifier);
+        if (FloodgateUtil.isFloodgateId(resolvedUuid)) {
+            return isExactUuidWhitelisted(resolvedUuid);
+        }
+        OfflinePlayer player = resolvedUuid == null
+                ? resolveOfflinePlayer(normalizedIdentifier)
+                : Bukkit.getOfflinePlayer(resolvedUuid);
+        return player != null && player.isWhitelisted();
+    }
+
+    public boolean addToWhitelist(UUID uuid, String username) {
+        String normalizedUsername = normalizeWhitelistName(uuid, username);
+        if (uuid == null || normalizedUsername == null) {
+            return false;
+        }
+        if (FloodgateUtil.isFloodgateId(uuid)) {
+            if (isExactUuidWhitelisted(uuid)) {
+                rememberWhitelistName(uuid, normalizedUsername);
+                repairWhitelistJsonName(uuid, normalizedUsername);
+                return false;
+            }
+            return addFloodgatePlayerToWhitelist(uuid, normalizedUsername);
+        }
+        OfflinePlayer player = Bukkit.getOfflinePlayer(uuid);
+        if (player.isWhitelisted()) {
+            rememberWhitelistName(uuid, normalizedUsername);
+            repairWhitelistJsonName(uuid, normalizedUsername);
+            return false;
+        }
+        player.setWhitelisted(true);
+        rememberWhitelistName(uuid, normalizedUsername);
+        repairWhitelistJsonName(uuid, normalizedUsername);
+        return true;
+    }
+
     public boolean addToWhitelist(String identifier) {
         String normalizedIdentifier = normalizeIdentifier(identifier);
-        PendingEntry entry = findMatchingEntry(normalizedIdentifier, null);
-        if (entry != null && entry.uuid() != null && !entry.uuid().isBlank()) {
-            try {
-                OfflinePlayer uuidPlayer = Bukkit.getOfflinePlayer(UUID.fromString(entry.uuid()));
-                if (uuidPlayer.isWhitelisted()) {
-                    return false;
-                }
-                uuidPlayer.setWhitelisted(true);
-                return true;
-            } catch (IllegalArgumentException ignored) {
-                // Fall through to normal username/identifier resolution.
-            }
+        if (normalizedIdentifier == null) {
+            return false;
         }
-        OfflinePlayer offlinePlayer = resolveOfflinePlayer(identifier);
+
+        UUID resolvedUuid = resolveWhitelistUuid(normalizedIdentifier);
+        String resolvedName = resolveWhitelistName(normalizedIdentifier);
+        if (FloodgateUtil.isFloodgateId(resolvedUuid)) {
+            if (isExactUuidWhitelisted(resolvedUuid)) {
+                rememberWhitelistName(resolvedUuid, resolvedName);
+                repairWhitelistJsonName(resolvedUuid, resolvedName);
+                return false;
+            }
+            return addFloodgatePlayerToWhitelist(resolvedUuid, resolvedName);
+        }
+
+        OfflinePlayer offlinePlayer = resolvedUuid == null
+                ? resolveOfflinePlayer(normalizedIdentifier)
+                : Bukkit.getOfflinePlayer(resolvedUuid);
         if (offlinePlayer == null) {
             return false;
         }
+
         if (offlinePlayer.isWhitelisted()) {
-            repairWhitelistedName(entry, offlinePlayer);
+            if (resolvedUuid != null) {
+                rememberWhitelistName(resolvedUuid, resolvedName);
+                repairWhitelistJsonName(resolvedUuid, resolvedName);
+            }
             return false;
         }
+
         offlinePlayer.setWhitelisted(true);
+        rememberWhitelistName(offlinePlayer.getUniqueId(), resolvedName);
+        repairWhitelistJsonName(offlinePlayer.getUniqueId(), resolvedName);
         return true;
     }
 
     public boolean addFloodgatePlayerToWhitelist(UUID uuid, String username) {
-        String normalizedUsername = normalizeIdentifier(username);
-        if (uuid == null || normalizedUsername == null || !isFloodgateUuid(uuid)) {
+        String normalizedUsername = normalizeWhitelistName(uuid, username);
+        if (uuid == null || normalizedUsername == null || !FloodgateUtil.isFloodgateId(uuid)) {
             return false;
         }
-
-        return writeFloodgateWhitelistEntry(uuid, normalizedUsername);
+        if (isExactUuidWhitelisted(uuid)) {
+            rememberWhitelistName(uuid, normalizedUsername);
+            repairWhitelistJsonName(uuid, normalizedUsername);
+            return false;
+        }
+        OfflinePlayer player = Bukkit.getOfflinePlayer(uuid);
+        if (player.isWhitelisted()) {
+            rememberWhitelistName(uuid, normalizedUsername);
+            repairWhitelistJsonName(uuid, normalizedUsername);
+            return false;
+        }
+        player.setWhitelisted(true);
+        rememberWhitelistName(uuid, normalizedUsername);
+        repairWhitelistJsonName(uuid, normalizedUsername);
+        return true;
     }
 
-    private boolean writeFloodgateWhitelistEntry(UUID uuid, String username) {
-        Path whitelistFile = plugin.getServer().getWorldContainer().toPath().resolve("whitelist.json");
-        try {
-            JsonArray whitelist;
-            if (Files.exists(whitelistFile)) {
-                JsonElement root = JsonParser.parseString(Files.readString(whitelistFile, StandardCharsets.UTF_8));
-                if (!root.isJsonArray()) {
-                    plugin.getLogger().warning("Could not update whitelist.json: the file is not an array.");
-                    return false;
-                }
-                whitelist = root.getAsJsonArray();
-            } else {
-                whitelist = new JsonArray();
-            }
-
-            boolean found = false;
-            for (int index = whitelist.size() - 1; index >= 0; index--) {
-                JsonElement element = whitelist.get(index);
-                if (!element.isJsonObject()) {
-                    continue;
-                }
-                JsonObject entry = element.getAsJsonObject();
-                if (uuid.toString().equalsIgnoreCase(getString(entry, "uuid"))) {
-                    if (found) {
-                        whitelist.remove(index);
-                    } else {
-                        entry.addProperty("name", username);
-                        found = true;
-                    }
-                }
-            }
-            if (!found) {
-                JsonObject entry = new JsonObject();
-                entry.addProperty("uuid", uuid.toString());
-                entry.addProperty("name", username);
-                whitelist.add(entry);
-            }
-
-            Files.createDirectories(whitelistFile.getParent());
-            Path temporaryFile = Files.createTempFile(whitelistFile.getParent(), "whitelist-", ".tmp");
-            try {
-                Files.writeString(temporaryFile, GSON.toJson(whitelist), StandardCharsets.UTF_8,
-                        StandardOpenOption.TRUNCATE_EXISTING);
-                try {
-                    Files.move(temporaryFile, whitelistFile, StandardCopyOption.ATOMIC_MOVE,
-                            StandardCopyOption.REPLACE_EXISTING);
-                } catch (java.nio.file.AtomicMoveNotSupportedException ex) {
-                    Files.move(temporaryFile, whitelistFile, StandardCopyOption.REPLACE_EXISTING);
-                }
-            } finally {
-                Files.deleteIfExists(temporaryFile);
-            }
-            boolean reloaded = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "whitelist reload");
-            if (!reloaded) {
-                plugin.getLogger().warning("Updated whitelist.json for " + username
-                        + ", but Paper could not reload the whitelist.");
-            }
-            return true;
-        } catch (IOException | JsonParseException ex) {
-            plugin.getLogger().warning("Could not write the Floodgate whitelist entry for " + username + ": "
-                    + ex.getMessage());
-            return false;
+    private String normalizeWhitelistName(UUID uuid, String username) {
+        String normalized = normalizeIdentifier(username);
+        if (normalized == null) {
+            return null;
         }
+        if (uuid != null && FloodgateUtil.isFloodgateId(uuid)) {
+            normalized = FloodgateUtil.addPrefix(normalized);
+        }
+        return isStoredWhitelistName(normalized) ? normalized : null;
     }
 
     public boolean isFloodgateUuid(String identifier) {
-        UUID uuid = parseUuid(identifier);
-        return uuid != null && isFloodgateUuid(uuid);
+        return FloodgateUtil.isFloodgateId(parseUuid(identifier));
     }
 
-    private boolean isFloodgateUuid(UUID uuid) {
-        // Floodgate's unlinked Bedrock UUID format reserves the first three UUID groups as zero.
-        return uuid.getMostSignificantBits() == 0L;
-    }
-
-    private void repairWhitelistedName(PendingEntry entry, OfflinePlayer offlinePlayer) {
-        if (entry == null || !isPlayerName(entry.name())) {
-            return;
+    private boolean isExactUuidWhitelisted(UUID uuid) {
+        if (uuid == null) {
+            return false;
         }
-
-        OfflinePlayer namedPlayer = Bukkit.getOfflinePlayer(entry.name());
-        if (!namedPlayer.getUniqueId().equals(offlinePlayer.getUniqueId())) {
-            return;
-        }
-
-        if (!hasWhitelistedNameMismatch(namedPlayer.getUniqueId(), entry.name())) {
-            return;
-        }
-
-        offlinePlayer.setWhitelisted(false);
-        namedPlayer.setWhitelisted(true);
-    }
-
-    private boolean hasWhitelistedNameMismatch(UUID uuid, String expectedName) {
-        for (OfflinePlayer whitelistedPlayer : Bukkit.getWhitelistedPlayers()) {
-            if (!whitelistedPlayer.getUniqueId().equals(uuid)) {
-                continue;
+        for (OfflinePlayer player : Bukkit.getWhitelistedPlayers()) {
+            if (uuid.equals(player.getUniqueId())) {
+                return true;
             }
-
-            String savedName = normalizeIdentifier(whitelistedPlayer.getName());
-            return savedName == null || !savedName.equalsIgnoreCase(expectedName);
         }
-
         return false;
     }
 
-    private OfflinePlayer resolveOfflinePlayer(String identifier) {
-        if (identifier == null || identifier.isBlank()) {
-            return null;
+    private UUID resolveWhitelistUuid(String identifier) {
+        PendingEntry entry = findPendingEntry(identifier);
+        UUID entryUuid = entry == null ? null : parseUuid(entry.uuid());
+        if (entryUuid != null) {
+            return entryUuid;
         }
 
-        String trimmed = identifier.trim();
+        UUID identifierUuid = parseUuid(identifier);
+        if (identifierUuid != null) {
+            return identifierUuid;
+        }
 
-        PendingEntry entry = findMatchingEntry(trimmed, null);
-        if (entry != null && isPlayerName(entry.name())) {
-            OfflinePlayer namedPlayer = Bukkit.getOfflinePlayer(entry.name());
-            if (entry.uuid() == null || entry.uuid().isBlank()
-                    || entry.uuid().equalsIgnoreCase(namedPlayer.getUniqueId().toString())) {
-                return namedPlayer;
+        FloodgateUtil.Identity identity = FloodgateUtil.resolveIdentifierIdentity(identifier);
+        if (identity != null) {
+            return identity.floodgateUuid();
+        }
+
+        Player onlinePlayer = Bukkit.getPlayerExact(identifier);
+        if (onlinePlayer != null) {
+            return onlinePlayer.getUniqueId();
+        }
+
+        OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(identifier);
+        return offlinePlayer.getUniqueId();
+    }
+
+    private String resolveWhitelistName(String identifier) {
+        PendingEntry entry = findPendingEntry(identifier);
+        if (entry != null) {
+            UUID entryUuid = parseUuid(entry.uuid());
+            String entryName = normalizeIdentifier(entry.name());
+            if (entryName != null) {
+                return normalizeWhitelistName(entryUuid, entryName);
             }
         }
-        if (entry != null && entry.uuid() != null && !entry.uuid().isBlank()) {
-            try {
-                return Bukkit.getOfflinePlayer(UUID.fromString(entry.uuid()));
-            } catch (IllegalArgumentException ignored) {
-            }
+
+        Player onlinePlayer = Bukkit.getPlayerExact(identifier);
+        if (onlinePlayer != null) {
+            FloodgateUtil.Identity identity = FloodgateUtil.resolveOnlineIdentity(onlinePlayer);
+            String onlineName = identity != null ? identity.username() : onlinePlayer.getName();
+            return normalizeWhitelistName(onlinePlayer.getUniqueId(), onlineName);
         }
 
-        try {
-            return Bukkit.getOfflinePlayer(UUID.fromString(trimmed));
-        } catch (IllegalArgumentException ignored) {
-            return Bukkit.getOfflinePlayer(trimmed);
+        UUID uuid = parseUuid(identifier);
+        if (uuid != null) {
+            String known = getKnownWhitelistName(uuid);
+            if (known != null) {
+                return normalizeWhitelistName(uuid, known);
+            }
+            return normalizeWhitelistName(uuid, Bukkit.getOfflinePlayer(uuid).getName());
+        }
+
+        FloodgateUtil.Identity identity = FloodgateUtil.resolveIdentifierIdentity(identifier);
+        if (identity != null) {
+            return normalizeWhitelistName(identity.floodgateUuid(), identity.username());
+        }
+
+        return normalizeWhitelistName(null, identifier);
+    }
+
+    public String getKnownWhitelistName(UUID uuid) {
+        return uuid == null ? null : knownWhitelistNames.get(uuid);
+    }
+
+    public void rememberWhitelistName(UUID uuid, String name) {
+        String normalizedName = normalizeIdentifier(name);
+        if (uuid == null || !isStoredWhitelistName(normalizedName)) {
+            return;
+        }
+        knownWhitelistNames.put(uuid, normalizedName);
+        scheduleKnownWhitelistNamesSave();
+    }
+
+    private void loadKnownWhitelistNames() {
+        Path file = plugin.getDataFolder().toPath().resolve("whitelist-names.json");
+        if (!Files.isRegularFile(file)) {
+            return;
+        }
+        try (var reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+            JsonElement root = JsonParser.parseReader(reader);
+            if (!root.isJsonObject()) {
+                return;
+            }
+            for (var entry : root.getAsJsonObject().entrySet()) {
+                UUID uuid = parseUuid(entry.getKey());
+                if (uuid == null || !entry.getValue().isJsonPrimitive()) {
+                    continue;
+                }
+                String name = normalizeIdentifier(entry.getValue().getAsString());
+                if (isStoredWhitelistName(name)) {
+                    knownWhitelistNames.put(uuid, name);
+                }
+            }
+        } catch (IOException | JsonParseException | UnsupportedOperationException ignored) {
+            plugin.getLogger().warning("Could not read whitelist-names.json.");
         }
     }
 
+    private void scheduleKnownWhitelistNamesSave() {
+        if (saveExecutor.isShutdown()) {
+            return;
+        }
+        saveExecutor.execute(() -> {
+            Path file = plugin.getDataFolder().toPath().resolve("whitelist-names.json");
+            Path temporary = file.resolveSibling("whitelist-names.json.tmp");
+            try {
+                Files.createDirectories(file.getParent());
+                JsonObject object = new JsonObject();
+                for (Map.Entry<UUID, String> entry : knownWhitelistNames.entrySet()) {
+                    object.addProperty(entry.getKey().toString(), entry.getValue());
+                }
+                Gson gson = new GsonBuilder().setPrettyPrinting().create();
+                Files.writeString(temporary, gson.toJson(object) + System.lineSeparator(),
+                        StandardCharsets.UTF_8);
+                try {
+                    Files.move(temporary, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                            java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+                } catch (java.nio.file.AtomicMoveNotSupportedException ex) {
+                    Files.move(temporary, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                }
+            } catch (IOException ex) {
+                plugin.getLogger().fine("Could not save whitelist-names.json: " + ex.getMessage());
+                try {
+                    Files.deleteIfExists(temporary);
+                } catch (IOException ignored) {
+                    // Best-effort cleanup.
+                }
+            }
+        });
+    }
+
+    public void repairWhitelistJsonName(UUID uuid, String name) {
+        String normalizedName = normalizeIdentifier(name);
+        if (uuid == null || !isStoredWhitelistName(normalizedName) || whitelistRepairExecutor.isShutdown()) {
+            return;
+        }
+
+        pendingWhitelistRepairs.put(uuid, normalizedName);
+        if (scheduledWhitelistRepairs.add(uuid)) {
+            scheduleWhitelistRepair(uuid, 0);
+        }
+    }
+
+    private void scheduleWhitelistRepair(UUID uuid, int attempt) {
+        if (attempt >= WHITELIST_REPAIR_DELAYS_TICKS.length) {
+            scheduledWhitelistRepairs.remove(uuid);
+            pendingWhitelistRepairs.remove(uuid);
+            return;
+        }
+
+        long delay = WHITELIST_REPAIR_DELAYS_TICKS[attempt];
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (whitelistRepairExecutor.isShutdown()) {
+                scheduledWhitelistRepairs.remove(uuid);
+                pendingWhitelistRepairs.remove(uuid);
+                return;
+            }
+
+            String name = pendingWhitelistRepairs.get(uuid);
+            if (name == null) {
+                scheduledWhitelistRepairs.remove(uuid);
+                return;
+            }
+
+            whitelistRepairExecutor.submit(() -> {
+                boolean repaired = repairWhitelistJsonNameNow(uuid, name);
+                String latestName = pendingWhitelistRepairs.get(uuid);
+                if (latestName == null) {
+                    scheduledWhitelistRepairs.remove(uuid);
+                    return;
+                }
+                if (attempt + 1 >= WHITELIST_REPAIR_DELAYS_TICKS.length) {
+                    scheduledWhitelistRepairs.remove(uuid);
+                    pendingWhitelistRepairs.remove(uuid);
+                    if (!repaired) {
+                        plugin.getLogger().fine("Could not confirm whitelist name repair for " + uuid);
+                    }
+                    return;
+                }
+                Bukkit.getScheduler().runTask(plugin, () -> scheduleWhitelistRepair(uuid, attempt + 1));
+            });
+        }, delay);
+    }
+
+    private String findWhitelistJsonName(JsonArray entries, UUID uuid) {
+        for (var element : entries) {
+            if (!element.isJsonObject()) {
+                continue;
+            }
+            JsonObject object = element.getAsJsonObject();
+            if (!object.has("uuid") || !object.get("uuid").isJsonPrimitive()) {
+                continue;
+            }
+            if (!uuid.toString().equalsIgnoreCase(object.get("uuid").getAsString())) {
+                continue;
+            }
+            if (object.has("name") && object.get("name").isJsonPrimitive()) {
+                return object.get("name").getAsString();
+            }
+            return null;
+        }
+        return null;
+    }
+
+    private boolean repairWhitelistJsonNameNow(UUID uuid, String name) {
+        Path file = plugin.getServer().getWorldContainer().toPath().resolve("whitelist.json");
+        Path temporary = file.resolveSibling("whitelist.json.pendingwhitelist.tmp");
+        try {
+            for (int attempt = 0; attempt < 3; attempt++) {
+                if (!Files.isRegularFile(file)) {
+                    return false;
+                }
+
+                String originalContent = Files.readString(file, StandardCharsets.UTF_8);
+                JsonElement parsed = JsonParser.parseString(originalContent);
+                if (!parsed.isJsonArray()) {
+                    return false;
+                }
+                JsonArray entries = parsed.getAsJsonArray();
+                boolean found = false;
+                boolean changed = false;
+                for (var element : entries) {
+                    if (!element.isJsonObject()) {
+                        continue;
+                    }
+                    JsonObject object = element.getAsJsonObject();
+                    if (!object.has("uuid")
+                            || !uuid.toString().equalsIgnoreCase(object.get("uuid").getAsString())) {
+                        continue;
+                    }
+                    found = true;
+                    String current = object.has("name") && object.get("name").isJsonPrimitive()
+                            ? object.get("name").getAsString() : "";
+                    if (!name.equals(current)) {
+                        object.addProperty("name", name);
+                        changed = true;
+                    }
+                    break;
+                }
+
+                if (!found) {
+                    return false;
+                }
+                if (!changed) {
+                    return name.equals(findWhitelistJsonName(entries, uuid));
+                }
+
+                Gson gson = new GsonBuilder().setPrettyPrinting().create();
+                Files.writeString(temporary, gson.toJson(entries) + System.lineSeparator(),
+                        StandardCharsets.UTF_8);
+
+                // Do not replace the file if Paper changed it while we were preparing the repair.
+                String currentContent = Files.readString(file, StandardCharsets.UTF_8);
+                if (!originalContent.equals(currentContent)) {
+                    Files.deleteIfExists(temporary);
+                    continue;
+                }
+
+                try {
+                    Files.move(temporary, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                            java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+                } catch (java.nio.file.AtomicMoveNotSupportedException ex) {
+                    Files.move(temporary, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                } catch (IOException ex) {
+                    // Some Windows setups keep the target file open briefly. Fall back to an in-place write.
+                    String currentBeforeWrite = Files.readString(file, StandardCharsets.UTF_8);
+                    if (!originalContent.equals(currentBeforeWrite)) {
+                        Files.deleteIfExists(temporary);
+                        continue;
+                    }
+                    Files.deleteIfExists(temporary);
+                    Files.writeString(file, gson.toJson(entries) + System.lineSeparator(),
+                            StandardCharsets.UTF_8, java.nio.file.StandardOpenOption.CREATE,
+                            java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
+                            java.nio.file.StandardOpenOption.WRITE);
+                }
+                String repairedContent = Files.readString(file, StandardCharsets.UTF_8);
+                JsonElement repairedParsed = JsonParser.parseString(repairedContent);
+                if (!repairedParsed.isJsonArray()) {
+                    return false;
+                }
+                return name.equals(findWhitelistJsonName(repairedParsed.getAsJsonArray(), uuid));
+            }
+            plugin.getLogger().fine("Skipped whitelist name repair because whitelist.json kept changing.");
+            return false;
+        } catch (IOException | RuntimeException ex) {
+            try {
+                Files.deleteIfExists(temporary);
+            } catch (IOException ignored) {
+                // Best-effort cleanup of a temporary repair file.
+            }
+            plugin.getLogger().warning("Could not repair whitelist name for " + uuid + ": " + ex.getMessage());
+            return false;
+        }
+    }
+
+    private OfflinePlayer resolveOfflinePlayer(String identifier) {
+        PendingEntry entry = findMatchingEntry(identifier, null);
+        if (entry != null) {
+            OfflinePlayer fromEntry = resolvePendingPlayer(entry);
+            if (fromEntry != null) {
+                return fromEntry;
+            }
+        }
+
+        UUID uuid = parseUuid(identifier);
+        return uuid == null ? Bukkit.getOfflinePlayer(identifier) : Bukkit.getOfflinePlayer(uuid);
+    }
+
+    private OfflinePlayer resolvePendingPlayer(PendingEntry entry) {
+        UUID uuid = parseUuid(entry.uuid());
+        if (uuid != null) {
+            OfflinePlayer byUuid = Bukkit.getOfflinePlayer(uuid);
+            if (FloodgateUtil.isFloodgateId(uuid) || byUuid.getName() != null) {
+                return byUuid;
+            }
+        }
+        if (isStoredWhitelistName(entry.name())) {
+            return Bukkit.getOfflinePlayer(entry.name());
+        }
+        return null;
+    }
+
     public boolean isPending(String identifier) {
-        return pending.stream().anyMatch(entry -> entry.matchesIdentifier(identifier));
+        return findPendingEntry(identifier) != null;
     }
 
     public PendingEntry findPendingEntry(String identifier) {
@@ -595,13 +800,7 @@ public class PendingStorage {
         if (normalized == null) {
             return null;
         }
-
-        for (PendingEntry entry : pending) {
-            if (entry.matchesIdentifier(normalized)) {
-                return entry;
-            }
-        }
-        return null;
+        return findMatchingEntry(normalized, null);
     }
 
     public String resolveDisplayNameForIdentifier(String identifier) {
@@ -610,36 +809,21 @@ public class PendingStorage {
             return null;
         }
 
-        PendingEntry entry = findMatchingEntry(normalized, null);
+        PendingEntry entry = findPendingEntry(normalized);
         if (entry != null) {
             if (entry.name() != null && !entry.name().isBlank()) {
                 return entry.name();
             }
-            try {
-                UUID uuid = UUID.fromString(entry.uuid());
-                String resolvedName = resolveStoredName(uuid);
-                if (resolvedName != null) {
-                    return resolvedName;
-                }
-            } catch (IllegalArgumentException ignored) {
-            }
-            return entry.uuid() != null && !entry.uuid().isBlank() ? entry.uuid() : normalized;
+            String resolved = resolvePlayerName(parseUuid(entry.uuid()));
+            return firstNonBlank(resolved, entry.uuid(), normalized);
         }
 
-        try {
-            UUID uuid = UUID.fromString(normalized);
-            String resolvedName = resolveStoredName(uuid);
-            if (resolvedName != null) {
-                return resolvedName;
-            }
-        } catch (IllegalArgumentException ignored) {
-        }
-
-        return normalized;
+        String resolved = resolvePlayerName(parseUuid(normalized));
+        return firstNonBlank(resolved, normalized, normalized);
     }
 
     public List<String> getPendingUsernames() {
-        List<String> names = new ArrayList<>();
+        List<String> names = new ArrayList<>(pending.size());
         for (PendingEntry entry : pending) {
             names.add(entry.displayName());
         }
@@ -647,11 +831,90 @@ public class PendingStorage {
         return names;
     }
 
+    private Map<UUID, String> readStoredWhitelistNames() {
+        Map<UUID, String> names = new java.util.LinkedHashMap<>();
+        Path file = plugin.getServer().getWorldContainer().toPath().resolve("whitelist.json");
+        if (!Files.isRegularFile(file)) {
+            return names;
+        }
+
+        try (var reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+            var root = JsonParser.parseReader(reader);
+            if (!root.isJsonArray()) {
+                return names;
+            }
+            for (var element : root.getAsJsonArray()) {
+                if (!element.isJsonObject()) {
+                    continue;
+                }
+                JsonObject object = element.getAsJsonObject();
+                if (!object.has("uuid") || !object.has("name")) {
+                    continue;
+                }
+
+                UUID uuid = parseUuid(object.get("uuid").getAsString());
+                String name = normalizeIdentifier(object.get("name").getAsString());
+                if (uuid != null && name != null) {
+                    names.put(uuid, name);
+                }
+            }
+        } catch (IOException | JsonParseException | UnsupportedOperationException ignored) {
+            // Bukkit's whitelist remains the source of truth if the JSON file cannot be read.
+        }
+        return names;
+    }
+
+    public String resolveWhitelistedUuid(String name) {
+        String normalized = normalizeIdentifier(name);
+        if (normalized == null) {
+            return null;
+        }
+
+        UUID directUuid = parseUuid(normalized);
+        if (directUuid != null) {
+            return directUuid.toString();
+        }
+
+        for (OfflinePlayer player : Bukkit.getWhitelistedPlayers()) {
+            String playerName = normalizeIdentifier(player.getName());
+            String knownName = knownWhitelistNames.get(player.getUniqueId());
+            if ((playerName != null && playerName.equalsIgnoreCase(normalized))
+                    || (knownName != null && knownName.equalsIgnoreCase(normalized))) {
+                return player.getUniqueId().toString();
+            }
+        }
+
+        Map<UUID, String> storedNames = readStoredWhitelistNames();
+        for (Map.Entry<UUID, String> entry : storedNames.entrySet()) {
+            String storedName = normalizeIdentifier(entry.getValue());
+            if (storedName != null && storedName.equalsIgnoreCase(normalized)) {
+                return entry.getKey().toString();
+            }
+        }
+
+        FloodgateUtil.Identity identity = FloodgateUtil.resolveIdentifierIdentity(normalized);
+        if (identity != null) {
+            return identity.floodgateUuid().toString();
+        }
+
+        return null;
+    }
+
     public List<String> getWhitelistedUsernames() {
+        Map<UUID, String> storedNames = readStoredWhitelistNames();
         List<String> names = new ArrayList<>();
-        for (OfflinePlayer offlinePlayer : Bukkit.getWhitelistedPlayers()) {
-            String name = normalizeIdentifier(offlinePlayer.getName());
-            if (name != null && !names.contains(name)) {
+        for (OfflinePlayer player : Bukkit.getWhitelistedPlayers()) {
+            String name = knownWhitelistNames.get(player.getUniqueId());
+            if (name == null) {
+                name = storedNames.get(player.getUniqueId());
+            }
+            if (name == null) {
+                name = normalizeIdentifier(player.getName());
+            }
+            if (name == null) {
+                name = player.getUniqueId().toString();
+            }
+            if (!containsIgnoreCase(names, name)) {
                 names.add(name);
             }
         }
@@ -659,9 +922,18 @@ public class PendingStorage {
         return names;
     }
 
+    private boolean containsIgnoreCase(List<String> values, String candidate) {
+        for (String value : values) {
+            if (value.equalsIgnoreCase(candidate)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public List<PendingEntry> getPendingEntriesSortedByRecencyDesc() {
         List<PendingEntry> entries = new ArrayList<>(pending);
-        entries.sort(Comparator.comparingLong(PendingEntry::lastAttempt).reversed());
+        entries.sort((left, right) -> Long.compare(right.lastAttempt(), left.lastAttempt()));
         return entries;
     }
 
@@ -674,20 +946,17 @@ public class PendingStorage {
     }
 
     public int purgeExpiredEntries(long cutoffMillis) {
-        List<PendingEntry> toRemove = new ArrayList<>();
-        for (PendingEntry entry : pending) {
-            if (entry.lastAttempt() < cutoffMillis) {
-                toRemove.add(entry);
+        int removed = 0;
+        for (int index = pending.size() - 1; index >= 0; index--) {
+            if (pending.get(index).lastAttempt() < cutoffMillis) {
+                pending.remove(index);
+                removed++;
             }
         }
-
-        if (toRemove.isEmpty()) {
-            return 0;
+        if (removed > 0) {
+            scheduleSave();
         }
-
-        pending.removeAll(toRemove);
-        scheduleSave();
-        return toRemove.size();
+        return removed;
     }
 
     public int size() {
@@ -699,10 +968,9 @@ public class PendingStorage {
     }
 
     public void scheduleSave() {
-        if (saveExecutor.isShutdown()) {
-            return;
+        if (!saveExecutor.isShutdown()) {
+            submitSave(List.copyOf(pending));
         }
-        submitSave(List.copyOf(pending));
     }
 
     public void flushSynchronously() {
@@ -719,6 +987,16 @@ public class PendingStorage {
             Thread.currentThread().interrupt();
             plugin.getLogger().warning("Interrupted while waiting for pending storage writes to finish.");
         }
+
+        whitelistRepairExecutor.shutdown();
+        try {
+            if (!whitelistRepairExecutor.awaitTermination(10, TimeUnit.SECONDS)) {
+                plugin.getLogger().warning("Timed out while waiting for whitelist repairs to finish.");
+            }
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            plugin.getLogger().warning("Interrupted while waiting for whitelist repairs to finish.");
+        }
     }
 
     public boolean reloadFromDisk() {
@@ -726,7 +1004,6 @@ public class PendingStorage {
         }), "finish pending storage writes before reloading")) {
             return false;
         }
-
         loadFromDisk();
         return true;
     }
@@ -743,35 +1020,29 @@ public class PendingStorage {
             Thread.currentThread().interrupt();
             plugin.getLogger().warning("Interrupted while trying to " + operation + ".");
         } catch (ExecutionException ex) {
-            plugin.getLogger().warning("Failed to " + operation + ": " + ex.getCause().getMessage());
+            Throwable cause = ex.getCause();
+            plugin.getLogger().warning("Failed to " + operation + ": "
+                    + (cause == null ? "unknown error" : cause.getMessage()));
         }
         return false;
     }
 
     private void saveToDisk(List<PendingEntry> snapshot) {
-        Path temporaryFile = null;
         try {
-            Files.createDirectories(storageFile.getParent());
-            temporaryFile = Files.createTempFile(storageFile.getParent(), "pending-", ".tmp");
-            Files.writeString(temporaryFile, GSON.toJson(snapshot), StandardCharsets.UTF_8,
-                    StandardOpenOption.TRUNCATE_EXISTING);
-            try {
-                Files.move(temporaryFile, storageFile, StandardCopyOption.ATOMIC_MOVE,
-                        StandardCopyOption.REPLACE_EXISTING);
-            } catch (java.nio.file.AtomicMoveNotSupportedException ex) {
-                Files.move(temporaryFile, storageFile, StandardCopyOption.REPLACE_EXISTING);
-            }
+            fileStore.save(snapshot);
         } catch (IOException ex) {
             plugin.getLogger().warning("Failed to save pending.json: " + ex.getMessage());
-        } finally {
-            if (temporaryFile != null) {
-                try {
-                    Files.deleteIfExists(temporaryFile);
-                } catch (IOException ex) {
-                    plugin.getLogger().warning("Failed to clean up a temporary pending storage file: "
-                            + ex.getMessage());
-                }
-            }
+        }
+    }
+
+    private UUID parseUuid(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException ex) {
+            return null;
         }
     }
 }

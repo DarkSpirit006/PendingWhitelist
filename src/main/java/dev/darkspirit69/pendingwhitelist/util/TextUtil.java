@@ -6,6 +6,7 @@ import org.bukkit.command.CommandSender;
 
 import java.util.Objects;
 
+/** Small Adventure and legacy formatting helpers used by commands and notifications. */
 public final class TextUtil {
 
     private static final LegacyComponentSerializer AMPERSAND_SERIALIZER = LegacyComponentSerializer.legacyAmpersand();

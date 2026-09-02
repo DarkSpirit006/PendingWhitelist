@@ -1,50 +1,48 @@
 # Usage
 
-This document provides expanded examples for managing PendingWhitelist.
+## Commands
 
-## Pending Players
+- `/wl` — opens the dashboard.
+- `/wl add` — opens the Add Players GUI.
+- `/wl add <player>` — adds a player to the server whitelist.
+- `/wl list [page]` — shows only whitelisted players in chat.
+- `/wl remove` — opens the same Whitelisted Players GUI.
+- `/wl remove <player...>` — removes players from the server whitelist.
+- `/wl pl [page]` — shows only pending players in chat.
+- `/wl rpl` — opens the Add Players GUI.
+- `/wl rpl <player...>` — removes players from pending storage only.
+- `/wl reload` — reloads configuration and pending data.
+- `/wl version` — checks the latest stable Modrinth release.
 
-- `/wl pl` - show the first page of pending players, newest first.
-- `/wl pl 2` - show page 2 of pending players.
+## Add Players GUI
 
-Hover over pending player names in-game to see stored details such as UUID and attempt count.
+The Add Players screen contains pending requests first, followed by other known players who are not currently whitelisted. Java and Bedrock entries are kept in separate row-aligned groups.
 
-## Whitelisting Players
+- **Left-click** — add the selected player to the whitelist.
+- **Shift-click** — add every player on the current page.
+- **Back** — return to the dashboard.
+- **Previous/Next** — move between pages when more than one page exists.
 
-- Single player: `/wl add Steve123`
-- Multiple players: `/wl add Steve123 AlexGaming Notch`
+The GUI is rebuilt automatically after an add operation, so a separate refresh action is not required.
 
-When the player is pending, `/wl add` whitelists the player and removes the pending entry. If the player is already whitelisted, the pending entry is still cleared. With Floodgate installed, Bedrock players are added through Floodgate's whitelist command so `whitelist.json` receives the correct profile name.
+## Whitelisted Players GUI
 
-`/wl add` also works as a full `/whitelist add` replacement for players who are not pending:
+The Whitelisted Players screen uses the same grid and navigation layout as Add Players.
 
-- `/wl add Steve123`
-- `/wl add 01234567-89ab-cdef-0123-456789abcdef`
+- **Left-click** — remove the selected player from the whitelist.
+- **Shift-click** — remove every whitelisted player on the current page.
+- **Back** — return to the dashboard.
 
-PendingWhitelist prefers the stored username when adding a pending player to the server whitelist. This keeps Bukkit/Paper's `whitelist.json` readable instead of writing blank names for UUID-only entries.
+The displayed player name comes from the stored whitelist identity when Bukkit does not have a cached name.
 
-## Removing Players
+## Join notifications
 
-- `/wl rpl Steve123` - remove only the pending entry.
-- `/wl remove Steve123` - remove from both the pending list and the server whitelist.
+When a non-whitelisted player is rejected, administrators with `pendingwhitelist.admin` receive clickable actions to whitelist the player, reject the pending request, or open the GUI.
 
-Use `rpl` when you want to reject or ignore a pending request without touching the server whitelist.
 
-## Whitelist View
+### Whitelist control
 
-- `/wl list` - show currently whitelisted players.
-
-## Reloading Config
-
-- `/wl reload` - reloads `config.yml`. This does not delete or rewrite `pending.json` unless storage changes are already pending.
-
-## Update Notifications
-
-- Administrators are notified on join when a newer stable version is available on Modrinth. Click the `[Modrinth]` link to download it manually.
-- Run `/wl version` to check the installed version against Modrinth manually.
-
-## Notes
-
-- Admin join notifications include clickable whitelist and remove-pending actions.
-- Entries are kept in memory and written asynchronously to disk when changed.
-- `/wl add` and `/wl rpl` are the official review commands. Older review aliases are intentionally not exposed.
+- `/wl on` enables the server whitelist.
+- `/wl off` disables the server whitelist.
+- `/wl list [page]` shows only currently whitelisted players in chat.
+- `/wl pl [page]` shows only pending players in chat.

@@ -1,16 +1,19 @@
 # Changelog
 
-All notable changes to PendingWhitelist are documented here.
+## [2.0.0] - 2026-09-01
 
-## [Unreleased]
+### Major Update
 
-### Added
-
-- Added automatic update checks and downloads through `/wl version`.
-- Added `/wl version` with the installed version, latest release, and clickable update button.
-- Added Geyser compatibility by converting temporary UUID whitelist entries to username entries after join.
-- Expanded `/wl add` to support arbitrary usernames and UUIDs as a `/whitelist add` replacement.
-- Added server-panel logging for update checks and results.
+- Redesigned the administration GUIs and interactions.
+- Unified Add Players and Whitelisted Players layouts and navigation.
+- Added row-safe Java and Bedrock grouping.
+- Added Shift-click page-wide add and remove actions.
+- Added asynchronous skin caching and live GUI skin updates.
+- Improved Floodgate identity and username-prefix handling.
+- Removed GUI refresh/reload controls; screens rebuild their data automatically.
+- Simplified player names and item lore to avoid duplicate or misleading text.
+- Moved the build to Gradle 9.7.1 with Kotlin DSL.
+- Made GitHub Actions builds manual and removed automatic version increments/releases.
 
 ## [1.2.7] - 2026-08-07
 
@@ -96,7 +99,7 @@ All notable changes to PendingWhitelist are documented here.
 
 - Added initial pending whitelist tracking.
 - Added persistent pending player storage.
-- Added automatic purge checks for expired pending entries.
+- Added automatic purge checks for expired pending players.
 - Added admin commands for managing pending whitelist entries.
 - Added player join handling for pending whitelist requests.
 - Added command tab completion.

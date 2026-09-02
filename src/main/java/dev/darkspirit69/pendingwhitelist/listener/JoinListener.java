@@ -1,7 +1,7 @@
 package dev.darkspirit69.pendingwhitelist.listener;
 
-import dev.darkspirit69.pendingwhitelist.PendingWhitelistPlugin;
 import dev.darkspirit69.pendingwhitelist.storage.PendingStorage;
+import dev.darkspirit69.pendingwhitelist.util.FloodgateUtil;
 import dev.darkspirit69.pendingwhitelist.update.UpdateNotifier;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -10,14 +10,14 @@ import org.bukkit.event.player.PlayerLoginEvent;
 
 import java.util.UUID;
 
-public class JoinListener implements Listener {
+/** Records rejected whitelist joins and sends the review notification to staff. */
+@SuppressWarnings("deprecation")
+public final class JoinListener implements Listener {
 
     private final PendingStorage pendingStorage;
-    private final PendingWhitelistPlugin plugin;
     private final UpdateNotifier updateNotifier;
 
-    public JoinListener(PendingWhitelistPlugin plugin, PendingStorage pendingStorage, UpdateNotifier updateNotifier) {
-        this.plugin = plugin;
+    public JoinListener(PendingStorage pendingStorage, UpdateNotifier updateNotifier) {
         this.pendingStorage = pendingStorage;
         this.updateNotifier = updateNotifier;
     }
@@ -32,11 +32,13 @@ public class JoinListener implements Listener {
         UUID uuid = event.getPlayer().getUniqueId();
 
         if (username == null || username.isBlank()) {
-            username = event.getPlayer().getAddress() != null ? event.getPlayer().getAddress().getHostName() : null;
+            return;
         }
 
-        if (username == null || username.isBlank()) {
-            return;
+        FloodgateUtil.Identity identity = FloodgateUtil.resolveOnlineIdentity(event.getPlayer());
+        if (identity != null) {
+            username = identity.username();
+            uuid = identity.floodgateUuid();
         }
 
         pendingStorage.recordAttempt(username, uuid);
