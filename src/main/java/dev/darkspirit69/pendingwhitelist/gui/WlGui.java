@@ -236,6 +236,18 @@ public final class WlGui implements InventoryHolder {
             return addCandidatesCache;
         }
 
+        List<List<AddCandidate>> groups = createAddCandidateGroups();
+        addCandidatesCache = new ArrayList<>();
+        for (List<AddCandidate> group : groups) {
+            group.sort(Comparator.comparing(candidate -> nonNullSortKey(candidate.name()),
+                    String.CASE_INSENSITIVE_ORDER));
+            addCandidatesCache.addAll(group);
+        }
+        return addCandidatesCache;
+    }
+
+    private List<List<AddCandidate>> createAddCandidateGroups() {
+        List<List<AddCandidate>> groups = new ArrayList<>();
         List<AddCandidate> pendingBedrock = new ArrayList<>();
         List<AddCandidate> pendingJava = new ArrayList<>();
         List<AddCandidate> otherBedrock = new ArrayList<>();
@@ -243,6 +255,19 @@ public final class WlGui implements InventoryHolder {
         Set<UUID> seen = new HashSet<>();
         Set<UUID> whitelistedUuids = new HashSet<>();
         Set<String> whitelistedNames = new HashSet<>();
+
+        collectWhitelistedPlayers(whitelistedUuids, whitelistedNames);
+        collectPendingCandidates(pendingBedrock, pendingJava, seen, whitelistedUuids, whitelistedNames);
+        collectOtherCandidates(otherBedrock, otherJava, seen, whitelistedUuids, whitelistedNames);
+
+        groups.add(pendingBedrock);
+        groups.add(pendingJava);
+        groups.add(otherBedrock);
+        groups.add(otherJava);
+        return groups;
+    }
+
+    private void collectWhitelistedPlayers(Set<UUID> whitelistedUuids, Set<String> whitelistedNames) {
         for (OfflinePlayer player : Bukkit.getWhitelistedPlayers()) {
             whitelistedUuids.add(player.getUniqueId());
             String name = player.getName();
@@ -250,67 +275,71 @@ public final class WlGui implements InventoryHolder {
                 whitelistedNames.add(name.toLowerCase(java.util.Locale.ROOT));
             }
         }
+    }
 
+    private void collectPendingCandidates(List<AddCandidate> pendingBedrock, List<AddCandidate> pendingJava,
+            Set<UUID> seen, Set<UUID> whitelistedUuids, Set<String> whitelistedNames) {
         for (PendingEntry entry : getPendingEntries()) {
             UUID uuid = parseUuid(entry.uuid());
-            String name = entry.name();
-            if (name == null || name.isBlank()) {
-                name = entry.displayName();
-            }
-            if (name == null || name.isBlank() || "unknown".equalsIgnoreCase(name)
-                    || isWhitelisted(uuid, name, whitelistedUuids, whitelistedNames)) {
+            String name = pendingName(entry);
+            if (!isAddCandidate(name, uuid, whitelistedUuids, whitelistedNames)) {
                 continue;
             }
             OfflinePlayer player = uuid == null ? Bukkit.getOfflinePlayer(name) : Bukkit.getOfflinePlayer(uuid);
-            boolean bedrock = uuid != null && dev.darkspirit69.pendingwhitelist.util.FloodgateUtil.isFloodgateId(uuid);
-            AddCandidate candidate = new AddCandidate(player, name, true, bedrock);
+            AddCandidate candidate = new AddCandidate(player, name, true, isBedrock(uuid));
             if (uuid != null) {
                 seen.add(uuid);
             }
-            if (bedrock) {
-                pendingBedrock.add(candidate);
-            } else {
-                pendingJava.add(candidate);
-            }
+            addCandidateToGroup(candidate, pendingBedrock, pendingJava);
         }
+    }
 
-        List<OfflinePlayer> others = new ArrayList<>();
+    private String pendingName(PendingEntry entry) {
+        String name = entry.name();
+        if (name == null || name.isBlank()) {
+            name = entry.displayName();
+        }
+        return name;
+    }
+
+    private boolean isAddCandidate(String name, UUID uuid, Set<UUID> whitelistedUuids, Set<String> whitelistedNames) {
+        return name != null && !name.isBlank() && !"unknown".equalsIgnoreCase(name)
+                && !isWhitelisted(uuid, name, whitelistedUuids, whitelistedNames);
+    }
+
+    private boolean isBedrock(UUID uuid) {
+        return uuid != null && FloodgateUtil.isFloodgateId(uuid);
+    }
+
+    private void addCandidateToGroup(AddCandidate candidate, List<AddCandidate> bedrock,
+            List<AddCandidate> java) {
+        if (candidate.bedrock()) {
+            bedrock.add(candidate);
+        } else {
+            java.add(candidate);
+        }
+    }
+
+    private void collectOtherCandidates(List<AddCandidate> otherBedrock, List<AddCandidate> otherJava,
+            Set<UUID> seen, Set<UUID> whitelistedUuids, Set<String> whitelistedNames) {
         for (OfflinePlayer player : Bukkit.getOfflinePlayers()) {
-            UUID uuid = player.getUniqueId();
-            String name = player.getName();
-            if (name == null || name.isBlank() || whitelistedUuids.contains(uuid)
-                    || whitelistedNames.contains(name.toLowerCase(java.util.Locale.ROOT)) || !seen.add(uuid)) {
+            if (!isOtherCandidate(player, seen, whitelistedUuids, whitelistedNames)) {
                 continue;
             }
-            others.add(player);
+            AddCandidate candidate = new AddCandidate(player, player.getName(), false,
+                    FloodgateUtil.isFloodgateId(player.getUniqueId()));
+            addCandidateToGroup(candidate, otherBedrock, otherJava);
         }
-        others.sort(Comparator.comparing(player -> nonNullSortKey(player.getName()),
-                String.CASE_INSENSITIVE_ORDER));
-        for (OfflinePlayer player : others) {
-            AddCandidate candidate = new AddCandidate(
-                    player, player.getName(), false,
-                    dev.darkspirit69.pendingwhitelist.util.FloodgateUtil.isFloodgateId(player.getUniqueId()));
-            if (candidate.bedrock()) {
-                otherBedrock.add(candidate);
-            } else {
-                otherJava.add(candidate);
-            }
-        }
+    }
 
-        Comparator<AddCandidate> candidateComparator =
-                Comparator.comparing(candidate -> nonNullSortKey(candidate.name()),
-                        String.CASE_INSENSITIVE_ORDER);
-        pendingBedrock.sort(candidateComparator);
-        pendingJava.sort(candidateComparator);
-        otherBedrock.sort(candidateComparator);
-        otherJava.sort(candidateComparator);
-
-        addCandidatesCache = new ArrayList<>();
-        addCandidatesCache.addAll(pendingBedrock);
-        addCandidatesCache.addAll(pendingJava);
-        addCandidatesCache.addAll(otherBedrock);
-        addCandidatesCache.addAll(otherJava);
-        return addCandidatesCache;
+    private boolean isOtherCandidate(OfflinePlayer player, Set<UUID> seen,
+            Set<UUID> whitelistedUuids, Set<String> whitelistedNames) {
+        UUID uuid = player.getUniqueId();
+        String name = player.getName();
+        return name != null && !name.isBlank()
+                && !whitelistedUuids.contains(uuid)
+                && !whitelistedNames.contains(name.toLowerCase(java.util.Locale.ROOT))
+                && seen.add(uuid);
     }
 
     private List<AddCandidate> getAddLayout() {

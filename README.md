@@ -46,6 +46,9 @@ PendingWhitelist records players rejected by a server whitelist and gives staff 
 
 ## Build
 
+Use the GitHub Actions workflows to build or publish the project. Releases are published from the current project version.
+
+
 The project uses **Gradle 9.7.1** and Kotlin DSL.
 
 ```powershell

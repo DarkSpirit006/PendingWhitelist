@@ -677,90 +677,113 @@ public final class PendingStorage {
         Path temporary = file.resolveSibling("whitelist.json.pendingwhitelist.tmp");
         try {
             for (int attempt = 0; attempt < 3; attempt++) {
-                if (!Files.isRegularFile(file)) {
-                    return false;
+                if (repairWhitelistJsonNameAttempt(file, temporary, uuid, name)) {
+                    return true;
                 }
-
-                String originalContent = Files.readString(file, StandardCharsets.UTF_8);
-                JsonElement parsed = JsonParser.parseString(originalContent);
-                if (!parsed.isJsonArray()) {
-                    return false;
-                }
-                JsonArray entries = parsed.getAsJsonArray();
-                boolean found = false;
-                boolean changed = false;
-                for (var element : entries) {
-                    if (!element.isJsonObject()) {
-                        continue;
-                    }
-                    JsonObject object = element.getAsJsonObject();
-                    if (!object.has("uuid")
-                            || !uuid.toString().equalsIgnoreCase(object.get("uuid").getAsString())) {
-                        continue;
-                    }
-                    found = true;
-                    String current = object.has("name") && object.get("name").isJsonPrimitive()
-                            ? object.get("name").getAsString() : "";
-                    if (!name.equals(current)) {
-                        object.addProperty("name", name);
-                        changed = true;
-                    }
-                    break;
-                }
-
-                if (!found) {
-                    return false;
-                }
-                if (!changed) {
-                    return name.equals(findWhitelistJsonName(entries, uuid));
-                }
-
-                Gson gson = new GsonBuilder().setPrettyPrinting().create();
-                Files.writeString(temporary, gson.toJson(entries) + System.lineSeparator(),
-                        StandardCharsets.UTF_8);
-
-                // Do not replace the file if Paper changed it while we were preparing the repair.
-                String currentContent = Files.readString(file, StandardCharsets.UTF_8);
-                if (!originalContent.equals(currentContent)) {
-                    Files.deleteIfExists(temporary);
-                    continue;
-                }
-
-                try {
-                    Files.move(temporary, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
-                            java.nio.file.StandardCopyOption.ATOMIC_MOVE);
-                } catch (java.nio.file.AtomicMoveNotSupportedException ex) {
-                    Files.move(temporary, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                } catch (IOException ex) {
-                    // Some Windows setups keep the target file open briefly. Fall back to an in-place write.
-                    String currentBeforeWrite = Files.readString(file, StandardCharsets.UTF_8);
-                    if (!originalContent.equals(currentBeforeWrite)) {
-                        Files.deleteIfExists(temporary);
-                        continue;
-                    }
-                    Files.deleteIfExists(temporary);
-                    Files.writeString(file, gson.toJson(entries) + System.lineSeparator(),
-                            StandardCharsets.UTF_8, java.nio.file.StandardOpenOption.CREATE,
-                            java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
-                            java.nio.file.StandardOpenOption.WRITE);
-                }
-                String repairedContent = Files.readString(file, StandardCharsets.UTF_8);
-                JsonElement repairedParsed = JsonParser.parseString(repairedContent);
-                if (!repairedParsed.isJsonArray()) {
-                    return false;
-                }
-                return name.equals(findWhitelistJsonName(repairedParsed.getAsJsonArray(), uuid));
             }
             plugin.getLogger().fine("Skipped whitelist name repair because whitelist.json kept changing.");
             return false;
         } catch (IOException | RuntimeException ex) {
-            try {
-                Files.deleteIfExists(temporary);
-            } catch (IOException ignored) {
-                // Best-effort cleanup of a temporary repair file.
-            }
+            deleteTemporaryFile(temporary);
             plugin.getLogger().warning("Could not repair whitelist name for " + uuid + ": " + ex.getMessage());
             return false;
+        }
+    }
+
+    private boolean repairWhitelistJsonNameAttempt(Path file, Path temporary, UUID uuid,
+            String name) throws IOException {
+        if (!Files.isRegularFile(file)) {
+            return false;
+        }
+
+        String originalContent = Files.readString(file, StandardCharsets.UTF_8);
+        JsonArray entries = parseWhitelistEntries(originalContent);
+        if (entries == null) {
+            return false;
+        }
+        if (!updateWhitelistEntry(entries, uuid, name)) {
+            return false;
+        }
+        if (name.equals(findWhitelistJsonName(entries, uuid))) {
+            return true;
+        }
+
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        String repairedJson = gson.toJson(entries) + System.lineSeparator();
+        Files.writeString(temporary, repairedJson, StandardCharsets.UTF_8);
+        if (whitelistFileChanged(file, originalContent)) {
+            Files.deleteIfExists(temporary);
+            return false;
+        }
+
+        replaceWhitelistFile(file, temporary, originalContent, repairedJson, gson, entries);
+        return verifyWhitelistJsonName(file, uuid, name);
+    }
+
+    private JsonArray parseWhitelistEntries(String content) {
+        JsonElement parsed = JsonParser.parseString(content);
+        return parsed.isJsonArray() ? parsed.getAsJsonArray() : null;
+    }
+
+    private boolean updateWhitelistEntry(JsonArray entries, UUID uuid, String name) {
+        for (var element : entries) {
+            if (!element.isJsonObject()) {
+                continue;
+            }
+            JsonObject object = element.getAsJsonObject();
+            if (!hasUuid(object, uuid)) {
+                continue;
+            }
+            String current = object.has("name") && object.get("name").isJsonPrimitive()
+                    ? object.get("name").getAsString() : "";
+            if (!name.equals(current)) {
+                object.addProperty("name", name);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private boolean hasUuid(JsonObject object, UUID uuid) {
+        return object.has("uuid") && object.get("uuid").isJsonPrimitive()
+                && uuid.toString().equalsIgnoreCase(object.get("uuid").getAsString());
+    }
+
+    private boolean whitelistFileChanged(Path file, String originalContent) throws IOException {
+        return !originalContent.equals(Files.readString(file, StandardCharsets.UTF_8));
+    }
+
+    private void replaceWhitelistFile(Path file, Path temporary, String originalContent,
+            String repairedJson, Gson gson, JsonArray entries) throws IOException {
+        try {
+            Files.move(temporary, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                    java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+        } catch (java.nio.file.AtomicMoveNotSupportedException ex) {
+            Files.move(temporary, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException ex) {
+            if (whitelistFileChanged(file, originalContent)) {
+                Files.deleteIfExists(temporary);
+                throw ex;
+            }
+            Files.deleteIfExists(temporary);
+            Files.writeString(file, repairedJson, StandardCharsets.UTF_8,
+                    java.nio.file.StandardOpenOption.CREATE,
+                    java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
+                    java.nio.file.StandardOpenOption.WRITE);
+        }
+    }
+
+    private boolean verifyWhitelistJsonName(Path file, UUID uuid, String name) throws IOException {
+        String repairedContent = Files.readString(file, StandardCharsets.UTF_8);
+        JsonArray repairedEntries = parseWhitelistEntries(repairedContent);
+        return repairedEntries != null && name.equals(findWhitelistJsonName(repairedEntries, uuid));
+    }
+
+    private void deleteTemporaryFile(Path temporary) {
+        try {
+            Files.deleteIfExists(temporary);
+        } catch (IOException ignored) {
+            // Best-effort cleanup of a temporary repair file.
         }
     }
 
