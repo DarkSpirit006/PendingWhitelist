@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.1.0] - 2026-09-02
+
+### Changed
+
+- Added Paper 1.20.1 compatibility baseline.
+- Updated the build to use JDK 25 while emitting Java 21-compatible bytecode.
+- Updated project version to 2.1.0.
+
 ## [2.0.0] - 2026-09-01
 
 ### Major Update

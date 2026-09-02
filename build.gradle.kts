@@ -5,7 +5,7 @@ plugins {
 
 // Keep the release version here; plugin.yml receives it during processResources.
 group = "dev.darkspirit69"
-version = "2.0.0"
+version = "2.1.0"
 description = "Tracks players rejected by a server whitelist and provides a graphical admin interface."
 
 repositories {
@@ -16,11 +16,12 @@ repositories {
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:26.2-rc-2.build.9-alpha")
+    compileOnly("io.papermc.paper:paper-api:1.20.1-R0.1-SNAPSHOT")
     implementation("com.google.code.gson:gson:2.13.0")
 }
 
 java {
+    // Build with JDK 25 while emitting Java 21-compatible bytecode for Paper 1.20.1+.
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(25))
     }
@@ -31,6 +32,7 @@ checkstyle {
 }
 
 tasks.withType<JavaCompile>().configureEach {
+    options.release.set(21)
     options.encoding = "UTF-8"
 }
 

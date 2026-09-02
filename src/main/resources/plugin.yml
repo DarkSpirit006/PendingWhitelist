@@ -1,7 +1,7 @@
 name: PendingWhitelist
 main: dev.darkspirit69.pendingwhitelist.PendingWhitelistPlugin
 version: '${version}'
-api-version: "26.2"
+api-version: "1.20"
 authors: [Dark_Spirit69]
 website: https://github.com/DarkSpirit006/PendingWhitelist
 softdepend: [floodgate, SkinsRestorer]
