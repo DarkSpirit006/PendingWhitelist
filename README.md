@@ -4,17 +4,36 @@
 
 ### Review and manage whitelist requests directly in-game.
 
-[![Build](https://img.shields.io/github/actions/workflow/status/DarkSpirit006/PendingWhitelist/build.yml?style=for-the-badge&logo=githubactions&logoColor=white&label=Build)](https://github.com/DarkSpirit006/PendingWhitelist/actions/workflows/build.yml)
-[![CodeFactor](https://img.shields.io/codefactor/grade/github/DarkSpirit006/PendingWhitelist?style=for-the-badge&logo=codefactor&logoColor=white&label=Code%20Quality)](https://www.codefactor.io/repository/github/darkspirit006/pendingwhitelist)
-[![Release](https://img.shields.io/github/v/release/DarkSpirit006/PendingWhitelist?style=for-the-badge&logo=github&logoColor=white&label=Release)](https://github.com/DarkSpirit006/PendingWhitelist/releases/latest)
-[![Modrinth](https://img.shields.io/modrinth/dt/pending-whitelist?style=for-the-badge&logo=modrinth&logoColor=white&label=Downloads)](https://modrinth.com/plugin/pending-whitelist)
-
-[![Java](https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2FDarkSpirit006%2FPendingWhitelist%2Fmain%2Fbuild.gradle.kts&search=JavaLanguageVersion.of%5C%28%28%5Cd%2B%29%5C%29&replace=%241&style=for-the-badge&logo=openjdk&logoColor=white&label=Java)](https://adoptium.net/temurin/)
-[![Gradle](https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2FDarkSpirit006%2FPendingWhitelist%2Fmain%2Fgradle%2Fwrapper%2Fgradle-wrapper.properties&search=gradle-%28%5Cd%2B%5C.%5Cd%2B%5C.%5Cd%2B%29-bin&replace=%241&style=for-the-badge&logo=gradle&logoColor=white&label=Gradle)](https://gradle.org/)
-[![Paper API](https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2FDarkSpirit006%2FPendingWhitelist%2Fmain%2Fbuild.gradle.kts&search=paper-api%3A%28%5B%5E%22%5D%2B%29&replace=%241&style=for-the-badge&logo=minecraft&logoColor=white&label=Paper%20API)](https://papermc.io/)
-[![License](https://img.shields.io/github/license/DarkSpirit006/PendingWhitelist?style=for-the-badge&logo=opensourceinitiative&logoColor=white&label=License)](LICENSE)
+[![Build][build-badge]][build-link] [![Code Quality][codefactor-badge]][codefactor-link] [![Release][release-badge]][release-link] [![Downloads][downloads-badge]][downloads-link] [![Stars][stars-badge]][stars-link] [![Java][java-badge]][java-link] [![Gradle][gradle-badge]][gradle-link] [![Paper API][paper-api-badge]][paper-link] [![License][license-badge]][license-link]
 
 </div>
+
+[build-badge]: https://img.shields.io/github/actions/workflow/status/DarkSpirit006/PendingWhitelist/build.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=Build
+[build-link]: https://github.com/DarkSpirit006/PendingWhitelist/actions/workflows/build.yml
+
+[codefactor-badge]: https://img.shields.io/codefactor/grade/github/DarkSpirit006/PendingWhitelist?style=for-the-badge&logo=codefactor&logoColor=white&label=Code%20Quality
+[codefactor-link]: https://www.codefactor.io/repository/github/darkspirit006/pendingwhitelist
+
+[release-badge]: https://img.shields.io/github/v/release/DarkSpirit006/PendingWhitelist?style=for-the-badge&logo=github&logoColor=white&label=Release&labelColor=30363d&color=58a6ff
+[release-link]: https://github.com/DarkSpirit006/PendingWhitelist/releases/latest
+
+[downloads-badge]: https://img.shields.io/modrinth/dt/pending-whitelist?style=for-the-badge&logo=modrinth&logoColor=white&label=Downloads&labelColor=30363d&color=9b59ff
+[downloads-link]: https://modrinth.com/plugin/pending-whitelist
+
+[stars-badge]: https://img.shields.io/github/stars/DarkSpirit006/PendingWhitelist?style=for-the-badge&logo=github&logoColor=white&label=Stars&labelColor=30363d&color=f2cc60
+[stars-link]: https://github.com/DarkSpirit006/PendingWhitelist/stargazers
+
+[java-badge]: https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2FDarkSpirit006%2FPendingWhitelist%2Fmain%2Fbuild.gradle.kts&search=JavaLanguageVersion%5C.of%5C%28%5Cs*%28%5Cd%2B%29%5Cs*%5C%29&replace=%241&style=for-the-badge&logo=openjdk&logoColor=white&label=Java&labelColor=30363d&color=f89820
+[java-link]: https://adoptium.net/temurin/
+
+[gradle-badge]: https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2FDarkSpirit006%2FPendingWhitelist%2Fmain%2Fgradle%2Fwrapper%2Fgradle-wrapper.properties&search=gradle-%28%5Cd%2B%5C.%5Cd%2B%5C.%5Cd%2B%29-bin&replace=%241&style=for-the-badge&logo=gradle&logoColor=white&label=Gradle&labelColor=30363d&color=0f6b78
+[gradle-link]: https://gradle.org/
+
+[paper-api-badge]: https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2FDarkSpirit006%2FPendingWhitelist%2Fmain%2Fbuild.gradle.kts&search=io%5C.papermc%5C.paper%3Apaper-api%3A%28%5B%5E%22%5D%2B%29&replace=%241&style=for-the-badge&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2Ij4KPGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTI4IDEyOCkiPgo8ZyBvcGFjaXR5PSIuOTgiPgo8cGF0aCBmaWxsPSIjRjREMDNGIiBkPSJNLTctNzkgMjMtNTQgNy00Mi0yMy02N3oiLz4KPHBhdGggZmlsbD0iIzdFRDMyMSIgZD0iTS0xMi03NiA3LTQ2LTgtMzctMzEtNjd6Ii8+CjxwYXRoIGZpbGw9IiMyRjhGRTUiIGQ9Ik0tMjctNjMgMy0zMC0xMC0xOS0zOS00OXoiLz4KPHBhdGggZmlsbD0iI0ZGNEY1RSIgZD0iTS03MS0zNy0zNi04LTQzIDktNzctMTh6Ii8+CjxwYXRoIGZpbGw9IiNGNEQwM0YiIGQ9Ik0tNzQgMzMtMzkgNS0zMSAxNy02NCA0OHoiLz4KPHBhdGggZmlsbD0iIzJGOEZFNSIgZD0iTS00MiA1OC0xMyAyMy0yIDM1LTMwIDcweiIvPgo8cGF0aCBmaWxsPSIjN0VEMzIxIiBkPSJNNiA3Mi0yIDMwIDEzIDI2IDIzIDY3eiIvPgo8cGF0aCBmaWxsPSIjRkY0RjVFIiBkPSJNNDEgNjAgMTAgMjEgMjIgMTEgNTQgNDd6Ii8+CjxwYXRoIGZpbGw9IiMyRjhGRTUiIGQ9Ik02NyA0MSAyMSA4IDI3LTYgNzggMjV6Ii8+CjxwYXRoIGZpbGw9IiNGNEQwM0YiIGQ9Ik03NyA0IDI1LTExIDI5LTI2IDgyLTEyeiIvPgo8cGF0aCBmaWxsPSIjN0VEMzIxIiBkPSJNNjktMzEgMjEtMjMgMTctMzggNjQtNDl6Ii8+CjxwYXRoIGZpbGw9IiNGRjRGNUUiIGQ9Ik01MS01NyAxMy0zMCAzLTQyIDQyLTcyeiIvPgo8L2c+CjxyZWN0IHg9Ii04MyIgeT0iLTgzIiB3aWR0aD0iMTY2IiBoZWlnaHQ9IjE2NiIgcng9IjIiIGZpbGw9IiM0MTQxNDEiLz4KPHBhdGggZD0iTS00OCAyIDQyLTQ5YzEwLTYgMTkgMiAxNiAxM0wyMyA2NmMtMiAxMC0xNCAxMy0yMCA0TC03IDQ1IDUgMTZsLTUzIDRjLTggMS05LTEzIDAtMThaIiBmaWxsPSIjZmZmIi8+CjxwYXRoIGQ9Im0tNyA0NSAxOC0xNC0zIDM2Yy0xIDEwLTE1IDExLTE3IDFaIiBmaWxsPSIjQ0ZDRkNGIi8+CjxwYXRoIGQ9Im0tNSA0NiAxMS04LTIgMjdjLTEgNS04IDYtMTAgMVoiIGZpbGw9IiM5QTlBOUEiLz4KPC9nPgo8L3N2Zz4=&label=Paper%20API&labelColor=30363d&color=33b5e5
+[paper-link]: https://papermc.io/
+
+[license-badge]: https://img.shields.io/github/license/DarkSpirit006/PendingWhitelist?style=for-the-badge&logo=opensourceinitiative&logoColor=white&label=License&labelColor=30363d&color=3fb950
+[license-link]: LICENSE
 
 PendingWhitelist records players rejected by a server whitelist and gives staff a fast, in-game way to review and manage them. Version 2.1.0 is a compatibility-focused update with unified layouts, Bedrock support, background skin handling, and live GUI updates.
 
