@@ -173,14 +173,15 @@ public final class PendingStorage {
                 .append(Component.text(String.valueOf(attempts), NamedTextColor.WHITE))
                 .build();
 
-        Component whitelist = action("[WHITELIST]", NamedTextColor.GREEN,
+        Component whitelist = action("Whitelist", NamedTextColor.GREEN,
                 "/wl add " + commandIdentifier, "Whitelist this player");
-        Component reject = action("[REJECT]", NamedTextColor.RED,
+        Component reject = action("Reject", NamedTextColor.RED,
                 "/wl rpl " + commandIdentifier, "Remove this player from pending");
-        Component open = action("[OPEN GUI]", NamedTextColor.AQUA,
+        Component open = action("Open GUI", NamedTextColor.AQUA,
                 "/wl add", "Open the pending-player GUI");
-        Component message = Component.text("[PendingWhitelist] ", NamedTextColor.GOLD)
-                .append(Component.text(displayName, NamedTextColor.YELLOW))
+        Component message = Component.text("PendingWhitelist", NamedTextColor.AQUA)
+                .append(Component.newline())
+                .append(Component.text(displayName, NamedTextColor.WHITE))
                 .append(Component.text(" is waiting for whitelist review", NamedTextColor.GRAY))
                 .append(Component.newline())
                 .append(Component.text("Actions: ", NamedTextColor.GRAY))

@@ -407,11 +407,11 @@ public final class WlGui implements InventoryHolder {
     }
 
     private Inventory createMainInventory() {
-        Inventory result = Bukkit.createInventory(this, 27, text("&8PendingWhitelist &6Dashboard"));
-        result.setItem(11, item(Material.CHEST, "&eAdd Players",
+        Inventory result = Bukkit.createInventory(this, 27, text("&8PendingWhitelist &bDashboard"));
+        result.setItem(11, item(Material.CHEST, "&bAdd Players",
                 "&7Review pending requests and add",
                 "&7known players to the whitelist."));
-        result.setItem(13, item(Material.EMERALD, "&aWhitelisted Players",
+        result.setItem(13, item(Material.EMERALD, "&bWhitelisted Players",
                 "&7View and remove whitelisted players."));
         result.setItem(15, item(Material.COMPARATOR, "&bConfigure",
                 "&7Manage plugin settings."));
@@ -425,7 +425,7 @@ public final class WlGui implements InventoryHolder {
         // Keep group boundaries intact so Java and Bedrock entries never share a row.
         List<AddCandidate> layout = getAddLayout();
         Inventory result = Bukkit.createInventory(this, GUI_SIZE,
-                text("&8PendingWhitelist &6Add Players &7(" + candidates.size() + ")"));
+                text("&8PendingWhitelist &bAdd Players &7(" + candidates.size() + ")"));
         int start = (page - 1) * PLAYER_SLOTS;
         int end = Math.min(start + PLAYER_SLOTS, layout.size());
         List<AddCandidate> visible = new ArrayList<>();
@@ -451,7 +451,7 @@ public final class WlGui implements InventoryHolder {
         List<WhitelistEntry> entries = getWhitelistEntries();
         List<WhitelistEntry> layout = getWhitelistLayout();
         Inventory result = Bukkit.createInventory(this, GUI_SIZE,
-                text("&8PendingWhitelist &6Whitelisted Players &7(" + entries.size() + ")"));
+                text("&8PendingWhitelist &bWhitelisted Players &7(" + entries.size() + ")"));
         int start = (page - 1) * PLAYER_SLOTS;
         int end = Math.min(start + PLAYER_SLOTS, layout.size());
         List<WhitelistEntry> visible = new ArrayList<>();
@@ -465,8 +465,8 @@ public final class WlGui implements InventoryHolder {
             result.setItem(index - start, playerHeadNamed(entry.player(), entry.name(),
                     "&7Status: &aWhitelisted", "&7Type: " + type,
                     "&7UUID: &f" + entry.player().getUniqueId(),
-                    "&aLeft-click: &7Remove from whitelist",
-                    "&eShift-left-click: &7Remove this page"));
+                    "&bLeft-click: &7Remove from whitelist",
+                    "&bShift-left-click: &7Remove this page"));
             visible.add(entry);
         }
         SkinHeadUtil.prefetchWhitelisted(plugin, this, visible);
@@ -479,7 +479,7 @@ public final class WlGui implements InventoryHolder {
     }
 
     private Inventory createConfigInventory() {
-        Inventory result = Bukkit.createInventory(this, 27, text("&8PendingWhitelist &6Configuration"));
+        Inventory result = Bukkit.createInventory(this, 27, text("&8PendingWhitelist &bConfiguration"));
         boolean purgeEnabled = plugin.isPurgeEnabled();
         int purgeDays = plugin.getPurgeDays();
         int pageSize = plugin.getConfiguredPageSize();
@@ -487,7 +487,7 @@ public final class WlGui implements InventoryHolder {
         result.setItem(11, item(purgeEnabled ? Material.LIME_WOOL : Material.RED_WOOL,
                 purgeEnabled ? "&aAutomatic Purge: ON" : "&cAutomatic Purge: OFF",
                 "&7Left-click: &fToggle automatic purge"));
-        result.setItem(13, item(Material.CLOCK, "&ePurge Age: &f" + purgeDays + " days",
+        result.setItem(13, item(Material.CLOCK, "&bPurge Age: &f" + purgeDays + " days",
                 "&7Left-click: &fIncrease by 5 days",
                 "&7Right-click: &fDecrease by 5 days"));
         result.setItem(15, item(Material.BOOK, "&bPage Size: &f" + pageSize,
@@ -507,7 +507,7 @@ public final class WlGui implements InventoryHolder {
                         "&7Go to page " + (currentPage - 1) + "."));
             }
             result.setItem(PAGE_SLOT, item(Material.PAPER,
-                    "&ePage &f" + currentPage + "&7/&f" + totalPages));
+                    "&7Page &f" + currentPage + "&7/&f" + totalPages));
             if (currentPage < totalPages) {
                 result.setItem(NEXT_SLOT, item(Material.ARROW, "&bNext Page",
                         "&7Go to page " + (currentPage + 1) + "."));
@@ -518,26 +518,26 @@ public final class WlGui implements InventoryHolder {
 
     private ItemStack addPlayerItem(AddCandidate candidate) {
         String name = candidate.name() == null || candidate.name().isBlank() ? "unknown" : candidate.name();
-        String status = candidate.pending() ? "&6Pending request" : "&fNot whitelisted";
+        String status = candidate.pending() ? "&ePending request" : "&7Not whitelisted";
         String type = candidate.bedrock() ? "&bBedrock" : "&fJava";
         if (candidate.pending()) {
             return playerHeadNamed(candidate.player(), name, "&7Status: " + status,
                     "&7Type: " + type, "&7UUID: &f" + candidate.player().getUniqueId(),
-                    "&aLeft-click: &7Add to whitelist",
-                    "&eShift-left-click: &7Add this page",
+                    "&bLeft-click: &7Add to whitelist",
+                    "&bShift-left-click: &7Add this page",
                     "&cRight-click: &7Remove from pending");
         }
         return playerHeadNamed(candidate.player(), name, "&7Status: " + status,
                 "&7Type: " + type, "&7UUID: &f" + candidate.player().getUniqueId(),
-                "&aLeft-click: &7Add to whitelist",
-                "&eShift-left-click: &7Add this page");
+                "&bLeft-click: &7Add to whitelist",
+                "&bShift-left-click: &7Add this page");
     }
 
     private ItemStack playerHeadNamed(OfflinePlayer player, String name, String... lore) {
         ItemStack stack = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) stack.getItemMeta();
         SkinHeadUtil.applyProfile(meta, player, name);
-        meta.displayName(text("&a" + name));
+        meta.displayName(text("&f" + name));
         setLore(meta, lore);
         stack.setItemMeta(meta);
         return stack;

@@ -35,7 +35,7 @@
 [license-badge]: https://img.shields.io/github/license/DarkSpirit006/PendingWhitelist?style=for-the-badge&logo=opensourceinitiative&logoColor=white&label=License&labelColor=30363d&color=3fb950
 [license-link]: LICENSE
 
-PendingWhitelist records players rejected by a server whitelist and gives staff a fast, in-game way to review and manage them. Version 2.1.0 is a compatibility-focused update with unified layouts, Bedrock support, background skin handling, and live GUI updates.
+PendingWhitelist records players rejected by a server whitelist and gives staff a fast, in-game way to review and manage them. Version 2.1.1 is a compatibility-focused update with unified layouts, Bedrock support, background skin handling, and live GUI updates.
 
 ## Features
 
@@ -75,7 +75,7 @@ The project uses **Gradle 9.7.1** and Kotlin DSL.
 .\gradlew.bat clean build
 ```
 
-The plugin JAR is written to `build/libs/PendingWhitelist-2.1.0.jar`.
+The plugin JAR is written to `build/libs/PendingWhitelist-2.1.1.jar`.
 
 ## Install
 

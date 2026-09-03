@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.1.1] - 2026-09-03
+
+### Changed
+
+- Converted PendingWhitelist to a native Paper plugin using `paper-plugin.yml`.
+- Updated the plugin release version to 2.1.1.
+
+
 ## [2.1.0] - 2026-09-02
 
 ### Changed

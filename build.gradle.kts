@@ -5,7 +5,7 @@ plugins {
 
 // Keep the release version here; plugin.yml receives it during processResources.
 group = "dev.darkspirit69"
-version = "2.1.0"
+version = "2.1.1"
 description = "Tracks players rejected by a server whitelist and provides a graphical admin interface."
 
 repositories {
@@ -38,7 +38,7 @@ tasks.withType<JavaCompile>().configureEach {
 
 // Expand the generated plugin metadata so there is only one version to maintain.
 tasks.processResources {
-    filesMatching("plugin.yml") {
+    filesMatching("paper-plugin.yml") {
         expand(mapOf("version" to project.version))
     }
 }

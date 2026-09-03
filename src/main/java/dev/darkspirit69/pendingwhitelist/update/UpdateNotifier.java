@@ -15,6 +15,8 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -26,8 +28,6 @@ public final class UpdateNotifier {
 
     private static final String VERSIONS_URL = "https://api.modrinth.com/v2/project/pending-whitelist/version";
     private static final String PROJECT_URL = "https://modrinth.com/plugin/pending-whitelist";
-    private static final long JOIN_CHECK_COOLDOWN_MILLIS = 60L * 60L * 1000L;
-
     private final PendingWhitelistPlugin plugin;
     private volatile long lastJoinCheckAt;
     private final HttpClient httpClient;
@@ -41,13 +41,13 @@ public final class UpdateNotifier {
     }
 
     public void notifyIfUpdateAvailable(Player player) {
-        if (!player.hasPermission("pendingwhitelist.admin") || !shouldCheckOnJoin()) {
+        if (!player.hasPermission("pendingwhitelist.admin")) {
             return;
         }
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            String latestVersion = fetchLatestVersion();
-            if (latestVersion == null || !isNewer(latestVersion, plugin.getInstalledVersion())) {
+            VersionResult result = fetchVersionResult();
+            if (result.latestVersion() == null) {
                 return;
             }
 
@@ -55,57 +55,55 @@ public final class UpdateNotifier {
                 if (!player.isOnline() || !player.hasPermission("pendingwhitelist.admin")) {
                     return;
                 }
-                Component message = Component.text("[PendingWhitelist] ", NamedTextColor.GOLD)
-                        .append(Component.text("Update available: ", NamedTextColor.YELLOW))
-                        .append(Component.text("v" + latestVersion, NamedTextColor.GREEN))
-                        .append(Component.text(" (installed: v" + plugin.getInstalledVersion() + ") ",
-                                NamedTextColor.GRAY))
-                        .append(Component.text("[Modrinth]", NamedTextColor.AQUA)
-                                .clickEvent(ClickEvent.openUrl(PROJECT_URL))
-                                .hoverEvent(HoverEvent.showText(
-                                        Component.text("Open PendingWhitelist on Modrinth", NamedTextColor.AQUA))));
-                player.sendMessage(message);
+
+                String installed = plugin.getInstalledVersion();
+                if (!isNewer(result.latestVersion(), installed)) {
+                    return;
+                }
+
+                int versionsBehind = countVersionsBehind(
+                        result.releaseVersions(), installed, result.latestVersion());
+                String amount = versionsBehind == 1 ? "1 version(s)" : versionsBehind + " version(s)";
+                player.sendMessage(Component.text("You are " + amount + " behind.", NamedTextColor.YELLOW));
+                player.sendMessage(Component.text("Download the new version at:", NamedTextColor.GRAY));
+                player.sendMessage(Component.text(PROJECT_URL, NamedTextColor.AQUA)
+                        .clickEvent(ClickEvent.openUrl(PROJECT_URL))
+                        .hoverEvent(HoverEvent.showText(Component.text(PROJECT_URL))));
             });
         });
-    }
-
-    private boolean shouldCheckOnJoin() {
-        long now = System.currentTimeMillis();
-        if (now - lastJoinCheckAt < JOIN_CHECK_COOLDOWN_MILLIS) {
-            return false;
-        }
-        lastJoinCheckAt = now;
-        return true;
     }
 
     public void checkNow(CommandSender sender) {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            String latestVersion = fetchLatestVersion();
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                if (latestVersion == null) {
-                    sender.sendMessage(Component.text("[PendingWhitelist] ", NamedTextColor.GOLD)
-                            .append(Component.text("Could not determine the latest Modrinth version.",
-                                    NamedTextColor.RED)));
-                    return;
-                }
-
-                Component message = Component.text("[PendingWhitelist] ", NamedTextColor.GOLD)
-                        .append(Component.text("Installed: v" + plugin.getInstalledVersion(), NamedTextColor.GRAY))
-                        .append(Component.text(" | Latest: v" + latestVersion, NamedTextColor.GRAY));
-                if (isNewer(latestVersion, plugin.getInstalledVersion())) {
-                    message = message.append(Component.text(" [Modrinth]", NamedTextColor.AQUA)
-                            .clickEvent(ClickEvent.openUrl(PROJECT_URL))
-                            .hoverEvent(HoverEvent.showText(
-                                    Component.text("Open PendingWhitelist on Modrinth", NamedTextColor.AQUA))));
-                } else {
-                    message = message.append(Component.text(" (up to date)", NamedTextColor.GREEN));
-                }
-                sender.sendMessage(message);
-            });
+            VersionResult result = fetchVersionResult();
+            Bukkit.getScheduler().runTask(plugin, () -> sendVersionResult(sender, result));
         });
     }
 
-    private String fetchLatestVersion() {
+    private void sendVersionResult(CommandSender sender, VersionResult result) {
+        String installed = plugin.getInstalledVersion();
+        if (result.latestVersion() == null) {
+            sender.sendMessage(Component.text("Current version: v" + installed, NamedTextColor.GRAY));
+            sender.sendMessage(Component.text("Could not determine the latest Modrinth version.", NamedTextColor.RED));
+            return;
+        }
+
+        sender.sendMessage(Component.text("Current version: v" + installed, NamedTextColor.GRAY));
+        if (!isNewer(result.latestVersion(), installed)) {
+            sender.sendMessage(Component.text("Plugin is up to date.", NamedTextColor.GREEN));
+            return;
+        }
+
+        int versionsBehind = countVersionsBehind(result.releaseVersions(), installed, result.latestVersion());
+        String amount = versionsBehind == 1 ? "1 version(s)" : versionsBehind + " version(s)";
+        sender.sendMessage(Component.text("You are " + amount + " behind.", NamedTextColor.YELLOW));
+        sender.sendMessage(Component.text("Download the new version at:", NamedTextColor.GRAY));
+        sender.sendMessage(Component.text(PROJECT_URL, NamedTextColor.AQUA)
+                .clickEvent(ClickEvent.openUrl(PROJECT_URL))
+                .hoverEvent(HoverEvent.showText(Component.text(PROJECT_URL))));
+    }
+
+    private VersionResult fetchVersionResult() {
         try {
             HttpRequest request = HttpRequest.newBuilder(URI.create(VERSIONS_URL))
                     .timeout(Duration.ofSeconds(20))
@@ -117,7 +115,7 @@ public final class UpdateNotifier {
             if (response.statusCode() != 200) {
                 plugin.getLogger()
                         .warning("Could not check Modrinth for updates (HTTP " + response.statusCode() + ").");
-                return null;
+                return VersionResult.empty();
             }
             return findLatestRelease(JsonParser.parseString(response.body()).getAsJsonArray());
         } catch (IOException ex) {
@@ -128,22 +126,44 @@ public final class UpdateNotifier {
         } catch (JsonParseException | IllegalStateException | UnsupportedOperationException ex) {
             plugin.getLogger().warning("Modrinth returned an unexpected update response: " + ex.getMessage());
         }
-        return null;
+        return VersionResult.empty();
     }
 
-    private String findLatestRelease(JsonArray versions) {
+    private VersionResult findLatestRelease(JsonArray versions) {
         String latest = null;
+        List<String> releases = new ArrayList<>();
         for (JsonElement element : versions) {
             JsonObject version = element.getAsJsonObject();
             if (!"release".equalsIgnoreCase(getString(version, "version_type"))) {
                 continue;
             }
             String versionNumber = normalizeVersion(getString(version, "version_number"));
-            if (versionNumber != null && (latest == null || isNewer(versionNumber, latest))) {
+            if (versionNumber == null || releases.contains(versionNumber)) {
+                continue;
+            }
+            releases.add(versionNumber);
+            if (latest == null || isNewer(versionNumber, latest)) {
                 latest = versionNumber;
             }
         }
-        return latest;
+        releases.sort((left, right) -> isNewer(right, left) ? 1 : isNewer(left, right) ? -1 : 0);
+        return new VersionResult(latest, releases);
+    }
+
+    private int countVersionsBehind(List<String> releases, String installed, String latest) {
+        int count = 0;
+        for (String release : releases) {
+            if (isNewer(release, installed) && !isNewer(release, latest)) {
+                count++;
+            }
+        }
+        return Math.max(count, 1);
+    }
+
+    private record VersionResult(String latestVersion, List<String> releaseVersions) {
+        private static VersionResult empty() {
+            return new VersionResult(null, java.util.List.of());
+        }
     }
 
     private String getString(JsonObject object, String key) {

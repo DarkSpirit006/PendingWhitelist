@@ -11,7 +11,6 @@ import org.bukkit.event.player.PlayerLoginEvent;
 import java.util.UUID;
 
 /** Records rejected whitelist joins and sends the review notification to staff. */
-@SuppressWarnings("deprecation")
 public final class JoinListener implements Listener {
 
     private final PendingStorage pendingStorage;
@@ -47,6 +46,5 @@ public final class JoinListener implements Listener {
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         updateNotifier.notifyIfUpdateAvailable(event.getPlayer());
-
     }
 }

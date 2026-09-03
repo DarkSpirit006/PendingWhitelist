@@ -23,7 +23,7 @@ import java.util.Locale;
 /** Handles the /wl command while keeping the GUI and legacy command paths in one place. */
 public final class WlCommand implements CommandExecutor, TabCompleter {
 
-    private static final String ROOT_USAGE = "&cUsage: /wl <pl|list|add|remove|rpl|on|off|reload|version>";
+    private static final String ROOT_USAGE = "&7Usage: /wl <pl|list|add|remove|rpl|on|off|reload|version>";
 
     private final PendingWhitelistPlugin plugin;
     private final PendingStorage pendingStorage;
@@ -86,16 +86,16 @@ public final class WlCommand implements CommandExecutor, TabCompleter {
     }
 
     private void sendHelp(CommandSender sender) {
-        TextUtil.send(sender, "&8&m--------&r &6PendingWhitelist &8&m--------");
-        TextUtil.send(sender, "&e/wl pl [page] &7- View pending players");
-        TextUtil.send(sender, "&e/wl list [page] &7- View whitelisted players");
-        TextUtil.send(sender, "&e/wl add <name...> &7- Add players to the server whitelist");
-        TextUtil.send(sender, "&e/wl remove <name...> &7- Remove players from the server whitelist");
-        TextUtil.send(sender, "&e/wl rpl <name...> &7- Reject/remove pending requests");
-        TextUtil.send(sender, "&e/wl on &7- Enable the server whitelist");
-        TextUtil.send(sender, "&e/wl off &7- Disable the server whitelist");
-        TextUtil.send(sender, "&e/wl reload &7- Reload the config");
-        TextUtil.send(sender, "&e/wl version &7- Check the latest Modrinth version");
+        TextUtil.send(sender, "&8&m---------------- &bPendingWhitelist &8&m----------------");
+        TextUtil.send(sender, "&b/wl pl [page] &7- View pending players");
+        TextUtil.send(sender, "&b/wl list [page] &7- View whitelisted players");
+        TextUtil.send(sender, "&b/wl add <name...> &7- Add players to the server whitelist");
+        TextUtil.send(sender, "&b/wl remove <name...> &7- Remove players from the server whitelist");
+        TextUtil.send(sender, "&b/wl rpl <name...> &7- Reject/remove pending requests");
+        TextUtil.send(sender, "&b/wl on &7- Enable the server whitelist");
+        TextUtil.send(sender, "&b/wl off &7- Disable the server whitelist");
+        TextUtil.send(sender, "&b/wl reload &7- Reload the config");
+        TextUtil.send(sender, "&b/wl version &7- Check the latest Modrinth version");
     }
 
     private boolean handleVersion(CommandSender sender, String[] args) {
@@ -103,7 +103,6 @@ public final class WlCommand implements CommandExecutor, TabCompleter {
             TextUtil.send(sender, "&cUsage: /wl version");
             return true;
         }
-        TextUtil.send(sender, "&7Checking Modrinth for the latest version...");
         updateNotifier.checkNow(sender);
         return true;
     }
@@ -121,7 +120,7 @@ public final class WlCommand implements CommandExecutor, TabCompleter {
 
         List<PendingEntry> entries = pendingStorage.getPendingEntriesSortedByRecencyDesc();
         if (entries.isEmpty()) {
-            TextUtil.send(sender, "&eNo pending players.");
+            TextUtil.send(sender, "&7No pending players.");
             return true;
         }
 
@@ -131,13 +130,13 @@ public final class WlCommand implements CommandExecutor, TabCompleter {
         int start = (page - 1) * pageSize;
         int end = Math.min(start + pageSize, entries.size());
 
-        TextUtil.send(sender, "&8&m--------&r &6Pending players &7(" + entries.size() + ") &8&m--------");
+        TextUtil.send(sender, "&8&m---------------- &bPending players &7(" + entries.size() + ") &8&m----------------");
         TextUtil.send(sender, "&7Page &f" + page + "&7/&f" + totalPages);
         for (int i = start; i < end; i++) {
             PendingEntry entry = entries.get(i);
             sendPendingListLine(sender, entry);
         }
-        sendPageNavigation(sender, "/wl pl", page, totalPages, NamedTextColor.GOLD);
+        sendPageNavigation(sender, "/wl pl", page, totalPages, NamedTextColor.AQUA);
         return true;
     }
 
@@ -156,11 +155,11 @@ public final class WlCommand implements CommandExecutor, TabCompleter {
                     .append(Component.text("Attempts: ", NamedTextColor.GRAY))
                     .append(Component.text(String.valueOf(entry.attempts()), NamedTextColor.WHITE))
                     .build();
-            player.sendMessage(Component.text("• ", NamedTextColor.GOLD)
+            player.sendMessage(Component.text("• ", NamedTextColor.AQUA)
                     .append(Component.text(displayName, NamedTextColor.WHITE))
                     .hoverEvent(HoverEvent.showText(hover)));
         } else {
-            TextUtil.send(sender, "&8- &f" + displayName);
+            TextUtil.send(sender, "&7• &f" + displayName);
         }
     }
 
@@ -177,7 +176,7 @@ public final class WlCommand implements CommandExecutor, TabCompleter {
 
         List<String> whitelisted = pendingStorage.getWhitelistedUsernames();
         if (whitelisted.isEmpty()) {
-            TextUtil.send(sender, "&eNo whitelisted players.");
+            TextUtil.send(sender, "&7No whitelisted players.");
             return true;
         }
 
@@ -187,12 +186,13 @@ public final class WlCommand implements CommandExecutor, TabCompleter {
         int start = (page - 1) * pageSize;
         int end = Math.min(start + pageSize, whitelisted.size());
 
-        TextUtil.send(sender, "&8&m--------&r &6Whitelisted players &7(" + whitelisted.size() + ") &8&m--------");
+        TextUtil.send(sender, "&8&m---------------- &bWhitelisted players &7("
+                + whitelisted.size() + ") &8&m----------------");
         TextUtil.send(sender, "&7Page &f" + page + "&7/&f" + totalPages);
         for (int i = start; i < end; i++) {
             sendWhitelistedListLine(sender, whitelisted.get(i));
         }
-        sendPageNavigation(sender, "/wl list", page, totalPages, NamedTextColor.GREEN);
+        sendPageNavigation(sender, "/wl list", page, totalPages, NamedTextColor.AQUA);
         return true;
     }
 
@@ -213,7 +213,7 @@ public final class WlCommand implements CommandExecutor, TabCompleter {
                     .append(Component.text(name, NamedTextColor.WHITE)
                             .hoverEvent(HoverEvent.showText(hover))));
         } else {
-            TextUtil.send(sender, "&8- &f" + name);
+            TextUtil.send(sender, "&7• &f" + name);
         }
     }
 
@@ -225,7 +225,7 @@ public final class WlCommand implements CommandExecutor, TabCompleter {
 
         Component navigation = Component.empty();
         if (page > 1) {
-            navigation = navigation.append(Component.text("[‹ Previous]", color)
+            navigation = navigation.append(Component.text("‹ Previous", color)
                     .clickEvent(net.kyori.adventure.text.event.ClickEvent.runCommand(command + " " + (page - 1)))
                     .hoverEvent(HoverEvent.showText(Component.text("Go to page " + (page - 1)))));
         }
@@ -233,7 +233,7 @@ public final class WlCommand implements CommandExecutor, TabCompleter {
             navigation = navigation.append(Component.text("  ", NamedTextColor.DARK_GRAY));
         }
         if (page < totalPages) {
-            navigation = navigation.append(Component.text("[Next ›]", color)
+            navigation = navigation.append(Component.text("Next ›", color)
                     .clickEvent(net.kyori.adventure.text.event.ClickEvent.runCommand(command + " " + (page + 1)))
                     .hoverEvent(HoverEvent.showText(Component.text("Go to page " + (page + 1)))));
         }
@@ -279,7 +279,7 @@ public final class WlCommand implements CommandExecutor, TabCompleter {
         }
 
         plugin.getServer().setWhitelist(enabled);
-        TextUtil.send(sender, enabled ? "&aWhitelist enabled." : "&eWhitelist disabled.");
+        TextUtil.send(sender, enabled ? "&aWhitelist enabled." : "&cWhitelist disabled.");
         if (sender instanceof org.bukkit.entity.Player player) {
             SoundUtil.success(player);
         }
@@ -429,7 +429,7 @@ public final class WlCommand implements CommandExecutor, TabCompleter {
                     .append(Component.text(uuidText, NamedTextColor.WHITE))
                     .append(Component.newline())
                     .append(Component.text("Status: ", NamedTextColor.GRAY))
-                    .append(Component.text(status, NamedTextColor.YELLOW))
+                    .append(Component.text(status, NamedTextColor.WHITE))
                     .append(Component.newline())
                     .append(Component.text("Attempts: ", NamedTextColor.GRAY))
                     .append(Component.text(attemptsText, NamedTextColor.WHITE))

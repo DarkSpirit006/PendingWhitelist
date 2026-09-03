@@ -149,7 +149,7 @@ public final class WlGuiListener implements Listener {
         if (candidate.player() != null && pendingStorage.addToWhitelist(candidate.player().getUniqueId(), name)) {
             pendingStorage.removePendingOnly(name);
             SoundUtil.success(player);
-            TextUtil.send(player, "&aAdded &f" + name + " &ato the whitelist.");
+            TextUtil.send(player, "&aAdded &f" + name + " &7to the whitelist.");
         } else {
             SoundUtil.failure(player);
             TextUtil.send(player, "&cCould not add &f" + name + "&c to the whitelist.");
@@ -175,7 +175,7 @@ public final class WlGuiListener implements Listener {
         }
         if (changed > 0) {
             SoundUtil.success(player);
-            TextUtil.send(player, "&aAdded &f" + changed + " &aplayer(s) to the whitelist.");
+            TextUtil.send(player, "&aAdded &f" + changed + " &7player(s) to the whitelist.");
         } else {
             SoundUtil.failure(player);
             TextUtil.send(player, "&eNo players were added.");
@@ -215,7 +215,7 @@ public final class WlGuiListener implements Listener {
         if (target.isWhitelisted()) {
             target.setWhitelisted(false);
             SoundUtil.success(player);
-            TextUtil.send(player, "&aRemoved &f" + name + " &afrom the whitelist.");
+            TextUtil.send(player, "&aRemoved &f" + name + " &7from the whitelist.");
         } else {
             SoundUtil.failure(player);
             TextUtil.send(player, "&c" + name + " &7is no longer whitelisted.");
@@ -235,7 +235,7 @@ public final class WlGuiListener implements Listener {
         }
         if (changed > 0) {
             SoundUtil.success(player);
-            TextUtil.send(player, "&aRemoved &f" + changed + " &aplayer(s) from the whitelist.");
+            TextUtil.send(player, "&aRemoved &f" + changed + " &7player(s) from the whitelist.");
         } else {
             SoundUtil.failure(player);
             TextUtil.send(player, "&eNo whitelisted players were changed.");
@@ -263,7 +263,7 @@ public final class WlGuiListener implements Listener {
         plugin.getConfig().set("purge.enabled", value);
         plugin.saveConfig();
         SoundUtil.success(player);
-        TextUtil.send(player, "&aSaved &fpurge.enabled: " + value);
+        TextUtil.send(player, "&aSaved &fpurge.enabled: &f" + value);
     }
 
     private void updatePurgeDays(Player player, int delta) {
@@ -271,7 +271,7 @@ public final class WlGuiListener implements Listener {
         plugin.getConfig().set("purge.days", value);
         plugin.saveConfig();
         SoundUtil.success(player);
-        TextUtil.send(player, "&aSaved &fpurge.days: " + value);
+        TextUtil.send(player, "&aSaved &fpurge.days: &f" + value);
     }
 
     private void updatePageSize(Player player, int delta) {
@@ -279,7 +279,7 @@ public final class WlGuiListener implements Listener {
         plugin.getConfig().set("page-size", value);
         plugin.saveConfig();
         SoundUtil.success(player);
-        TextUtil.send(player, "&aSaved &fpage-size: " + value);
+        TextUtil.send(player, "&aSaved &fpage-size: &f" + value);
     }
 
 

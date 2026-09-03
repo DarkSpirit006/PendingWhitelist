@@ -6,8 +6,13 @@ import dev.darkspirit69.pendingwhitelist.gui.WlGuiListener;
 import dev.darkspirit69.pendingwhitelist.storage.PendingStorage;
 import dev.darkspirit69.pendingwhitelist.update.UpdateNotifier;
 import dev.darkspirit69.pendingwhitelist.util.SkinHeadUtil;
-import org.bukkit.command.PluginCommand;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandMap;
+import org.bukkit.command.CommandSender;
 import org.bukkit.plugin.java.JavaPlugin;
+
+import java.lang.reflect.Method;
+import java.util.List;
 
 /** Main plugin entry point; wires the command, listeners, storage, and update checker together. */
 public final class PendingWhitelistPlugin extends JavaPlugin {
@@ -28,15 +33,46 @@ public final class PendingWhitelistPlugin extends JavaPlugin {
         pendingStorage.loadFromDisk();
         getServer().getPluginManager().registerEvents(new JoinListener(pendingStorage, updateNotifier), this);
         getServer().getPluginManager().registerEvents(new WlGuiListener(this, pendingStorage), this);
-        PluginCommand command = getCommand("wl");
-        if (command == null) {
-            throw new IllegalStateException("The wl command is missing from plugin.yml");
-        }
-        command.setExecutor(wlCommand);
-        command.setTabCompleter(wlCommand);
+        registerCommand();
 
         pendingStorage.schedulePurgeCheck();
 
+    }
+
+
+    /**
+     * Registers /wl directly with Paper's command map.
+     * Paper plugins do not read the legacy plugin.yml "commands" section.
+     */
+    private void registerCommand() {
+        Command command = new Command("wl") {
+            @Override
+            public boolean execute(CommandSender sender, String commandLabel, String[] args) {
+                return wlCommand.onCommand(sender, this, commandLabel, args);
+            }
+
+            @Override
+            public List<String> tabComplete(CommandSender sender, String alias, String[] args) {
+                return wlCommand.onTabComplete(sender, this, alias, args);
+            }
+        };
+        command.setDescription("Manage pending whitelist entries and open the admin GUI.");
+        command.setUsage("/wl <pl|list|add|remove|rpl|on|off|reload|version>");
+        command.setPermission("pendingwhitelist.admin");
+
+        CommandMap commandMap = getCommandMap();
+        if (!commandMap.register("pendingwhitelist", command)) {
+            throw new IllegalStateException("Unable to register the /wl command.");
+        }
+    }
+
+    private CommandMap getCommandMap() {
+        try {
+            Method method = getServer().getClass().getMethod("getCommandMap");
+            return (CommandMap) method.invoke(getServer());
+        } catch (ReflectiveOperationException | ClassCastException ex) {
+            throw new IllegalStateException("Unable to access the server command map.", ex);
+        }
     }
 
     @Override
