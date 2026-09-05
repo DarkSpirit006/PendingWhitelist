@@ -1,12 +1,16 @@
 package dev.darkspirit69.pendingwhitelist.util;
 
+import dev.darkspirit69.pendingwhitelist.text.MessageStyle;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.command.CommandSender;
 
 import java.util.Objects;
 
-/** Small Adventure and legacy formatting helpers used by commands and notifications. */
+/**
+ * Small Adventure and legacy formatting helpers used by commands and
+ * notifications.
+ */
 public final class TextUtil {
 
     private static final LegacyComponentSerializer AMPERSAND_SERIALIZER = LegacyComponentSerializer.legacyAmpersand();
@@ -25,5 +29,21 @@ public final class TextUtil {
 
     public static void send(CommandSender recipient, String message) {
         Objects.requireNonNull(recipient, "recipient").sendMessage(component(message));
+    }
+
+    public static void sendSuccess(CommandSender recipient, String message) {
+        Objects.requireNonNull(recipient, "recipient").sendMessage(MessageStyle.success(message));
+    }
+
+    public static void sendWarning(CommandSender recipient, String message) {
+        Objects.requireNonNull(recipient, "recipient").sendMessage(MessageStyle.warning(message));
+    }
+
+    public static void sendError(CommandSender recipient, String message) {
+        Objects.requireNonNull(recipient, "recipient").sendMessage(MessageStyle.error(message));
+    }
+
+    public static void sendPrimary(CommandSender recipient, String message) {
+        Objects.requireNonNull(recipient, "recipient").sendMessage(MessageStyle.primary(message));
     }
 }

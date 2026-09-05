@@ -3,10 +3,11 @@ plugins {
     checkstyle
 }
 
-// Keep the release version here; plugin.yml receives it during processResources.
+// Keep the release version here; paper-plugin.yml receives it during processResources.
 group = "dev.darkspirit69"
-version = "2.1.1"
+version = "2.2.0"
 description = "Tracks players rejected by a server whitelist and provides a graphical admin interface."
+val pluginVersion = version.toString()
 
 repositories {
     mavenCentral()
@@ -39,20 +40,22 @@ tasks.withType<JavaCompile>().configureEach {
 // Expand the generated plugin metadata so there is only one version to maintain.
 tasks.processResources {
     filesMatching("paper-plugin.yml") {
-        expand(mapOf("version" to project.version))
+        expand(mapOf("version" to pluginVersion))
     }
 }
 
-// Keep the published JAR name stable while the manifest records the release version.
+// Keep the release JAR versioned so artifacts are unambiguous.
 tasks.jar {
     archiveBaseName.set("PendingWhitelist")
+    archiveVersion.set(pluginVersion)
     manifest {
         attributes(
             mapOf(
                 "Implementation-Title" to project.name,
-                "Implementation-Version" to project.version,
+                "Implementation-Version" to pluginVersion,
                 "Implementation-Vendor" to "Dark_Spirit69"
             )
         )
     }
 }
+

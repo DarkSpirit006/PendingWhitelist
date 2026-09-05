@@ -1,4 +1,12 @@
+# Enable detailed diagnostic logging. Keep this disabled on production servers unless troubleshooting.
+logging:
+  debug: false
+
 page-size: 10
+
+notifications:
+  join-attempts: true
+  join-attempt-cooldown-seconds: 60
 
 purge:
   enabled: true

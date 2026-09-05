@@ -1,16 +1,19 @@
 package dev.darkspirit69.pendingwhitelist.completion;
 
-import dev.darkspirit69.pendingwhitelist.storage.PendingStorage;
+import dev.darkspirit69.pendingwhitelist.storage.PendingRepository;
+import dev.darkspirit69.pendingwhitelist.logging.DebugLog;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.Bukkit;
-import org.bukkit.entity.Player;
+import org.bukkit.OfflinePlayer;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /** Provides context-aware completion for the /wl command. */
 public class WhitelistCompletion implements TabCompleter {
@@ -26,14 +29,19 @@ public class WhitelistCompletion implements TabCompleter {
             "reload",
             "version");
 
-    private final PendingStorage pendingStorage;
+    private static final long ADD_SUGGESTIONS_CACHE_MILLIS = 500L;
 
-    public WhitelistCompletion(PendingStorage pendingStorage) {
+    private final PendingRepository pendingStorage;
+    private List<String> cachedAddSuggestions = List.of();
+    private long cachedAddSuggestionsAt;
+
+    public WhitelistCompletion(PendingRepository pendingStorage) {
         this.pendingStorage = pendingStorage;
     }
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        DebugLog.debug("WhitelistCompletion invoked for " + sender.getName());
         if (!sender.hasPermission("pendingwhitelist.admin")) {
             return Collections.emptyList();
         }
@@ -74,7 +82,6 @@ public class WhitelistCompletion implements TabCompleter {
         return filterByPrefix(availableSuggestions, args[args.length - 1]);
     }
 
-
     private List<String> getRemovalSuggestions(String subcommand) {
         List<String> suggestions = new ArrayList<>();
         if ("add".equals(subcommand)) {
@@ -88,32 +95,102 @@ public class WhitelistCompletion implements TabCompleter {
     }
 
     private List<String> getAddSuggestions() {
-        List<String> whitelisted = pendingStorage.getWhitelistedUsernames();
-        List<String> suggestions = new ArrayList<>(pendingStorage.getPendingUsernames());
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            if (player == null) {
+        long now = System.currentTimeMillis();
+        if (now - cachedAddSuggestionsAt < ADD_SUGGESTIONS_CACHE_MILLIS) {
+            return cachedAddSuggestions;
+        }
+
+        Set<String> whitelisted = new HashSet<>();
+        for (String name : pendingStorage.getWhitelistedUsernames()) {
+            if (name != null) {
+                whitelisted.add(name.toLowerCase(Locale.ROOT));
+            }
+        }
+        List<String> pendingBedrock = new ArrayList<>();
+        List<String> pendingJava = new ArrayList<>();
+        List<String> onlineBedrock = new ArrayList<>();
+        List<String> onlineJava = new ArrayList<>();
+        List<String> offlineBedrock = new ArrayList<>();
+        List<String> offlineJava = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+
+        for (var entry : pendingStorage.getPendingEntriesSortedByRecencyDesc()) {
+            String name = entry.name();
+            if (name == null || name.isBlank()) {
+                name = entry.displayName();
+            }
+            if (!isAvailable(name, whitelisted, seen)) {
+                continue;
+            }
+            if (pendingStorage.isFloodgateUuid(entry.uuid())) {
+                pendingBedrock.add(name);
+            } else {
+                pendingJava.add(name);
+            }
+        }
+
+        for (var player : Bukkit.getOnlinePlayers()) {
+            String name = player.getName();
+            if (!isAvailable(name, whitelisted, seen)) {
+                continue;
+            }
+            if (pendingStorage.isPending(name)) {
+                continue;
+            }
+            if (pendingStorage.isFloodgateUuid(player.getUniqueId().toString())) {
+                onlineBedrock.add(name);
+            } else {
+                onlineJava.add(name);
+            }
+        }
+
+        for (OfflinePlayer player : Bukkit.getOfflinePlayers()) {
+            if (player.isOnline() || !player.hasPlayedBefore()) {
                 continue;
             }
             String name = player.getName();
-            if (name != null && !name.isBlank()) {
-                suggestions.add(name);
+            if (!isAvailable(name, whitelisted, seen)) {
+                continue;
+            }
+            if (pendingStorage.isFloodgateUuid(player.getUniqueId().toString())) {
+                offlineBedrock.add(name);
+            } else {
+                offlineJava.add(name);
             }
         }
 
-        return suggestions.stream()
-                .filter(name -> !containsIgnoreCase(whitelisted, name))
-                .distinct()
-                .sorted(String.CASE_INSENSITIVE_ORDER)
-                .toList();
+        sortSuggestions(pendingBedrock);
+        sortSuggestions(pendingJava);
+        sortSuggestions(onlineBedrock);
+        sortSuggestions(onlineJava);
+        sortSuggestions(offlineBedrock);
+        sortSuggestions(offlineJava);
+
+        List<String> suggestions = new ArrayList<>();
+        suggestions.addAll(pendingBedrock);
+        suggestions.addAll(pendingJava);
+        suggestions.addAll(onlineBedrock);
+        suggestions.addAll(onlineJava);
+        suggestions.addAll(offlineBedrock);
+        suggestions.addAll(offlineJava);
+        cachedAddSuggestions = List.copyOf(suggestions);
+        cachedAddSuggestionsAt = now;
+        return cachedAddSuggestions;
     }
 
-    private boolean containsIgnoreCase(List<String> values, String target) {
-        for (String value : values) {
-            if (value.equalsIgnoreCase(target)) {
-                return true;
-            }
+    private boolean isAvailable(String name, Set<String> whitelisted, Set<String> seen) {
+        if (name == null || name.isBlank() || whitelisted.contains(name.toLowerCase(Locale.ROOT))) {
+            return false;
         }
-        return false;
+        String normalized = name.toLowerCase(Locale.ROOT);
+        if (!seen.add(normalized)) {
+            return false;
+        }
+        return true;
+    }
+
+    private void sortSuggestions(List<String> suggestions) {
+        suggestions.sort(String.CASE_INSENSITIVE_ORDER);
     }
 
     private List<String> filterByPrefix(List<String> suggestions, String prefix) {

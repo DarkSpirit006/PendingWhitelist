@@ -1,5 +1,6 @@
 package dev.darkspirit69.pendingwhitelist.storage;
 
+import dev.darkspirit69.pendingwhitelist.logging.DebugLog;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -11,6 +12,7 @@ import com.google.gson.reflect.TypeToken;
 import dev.darkspirit69.pendingwhitelist.model.PendingEntry;
 
 import java.io.IOException;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -20,43 +22,88 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/** Reads and writes pending entries using an atomic temporary-file replacement. */
+/**
+ * Reads and writes pending entries using an atomic temporary-file replacement.
+ */
 final class PendingFileStore {
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private final Path storageFile;
+    private final Path backupFile;
 
     PendingFileStore(Path storageFile) {
         this.storageFile = storageFile;
+        this.backupFile = storageFile.resolveSibling(storageFile.getFileName() + ".bak");
     }
 
     List<PendingEntry> load() throws IOException, JsonParseException {
         ensureStorageFile();
-        String contents = Files.readString(storageFile, StandardCharsets.UTF_8);
-        if (contents.isBlank()) {
-            return List.of();
+        try {
+            List<PendingEntry> entries = readEntries(storageFile);
+            DebugLog.debug("Pending file loaded successfully: entries=" + entries.size());
+            return entries;
+        } catch (IOException | JsonParseException ex) {
+            DebugLog.warn("Primary pending file read failed; checking backup: " + ex.getMessage());
+            if (!Files.isRegularFile(backupFile)) {
+                throw ex;
+            }
+            List<PendingEntry> recovered = readEntries(backupFile);
+            DebugLog.info("Recovered pending data from backup file: entries=" + recovered.size());
+            replaceWithRecovery(storageFile, backupFile);
+            return recovered;
         }
-        return parseEntries(contents);
     }
 
     void save(List<PendingEntry> snapshot) throws IOException {
         Files.createDirectories(storageFile.getParent());
         Path temporaryFile = Files.createTempFile(storageFile.getParent(), "pending-", ".tmp");
         try {
-            Files.writeString(temporaryFile, GSON.toJson(snapshot), StandardCharsets.UTF_8,
-                    StandardOpenOption.TRUNCATE_EXISTING);
+            writeAndSync(temporaryFile, GSON.toJson(snapshot));
+            if (Files.exists(storageFile)) {
+                moveAtomically(storageFile, backupFile);
+            }
             moveAtomically(temporaryFile, storageFile);
+            DebugLog.debug("Pending file replacement completed successfully");
         } finally {
             Files.deleteIfExists(temporaryFile);
         }
     }
 
     private void ensureStorageFile() throws IOException {
-        if (!Files.exists(storageFile)) {
-            Files.createDirectories(storageFile.getParent());
-            Files.writeString(storageFile, "[]", StandardCharsets.UTF_8, StandardOpenOption.CREATE,
-                    StandardOpenOption.TRUNCATE_EXISTING);
+        Files.createDirectories(storageFile.getParent());
+        if (Files.isRegularFile(storageFile)) {
+            return;
+        }
+        if (Files.isRegularFile(backupFile)) {
+            moveAtomically(backupFile, storageFile);
+            return;
+        }
+        Files.writeString(storageFile, "[]", StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+    }
+
+    private List<PendingEntry> readEntries(Path file) throws IOException, JsonParseException {
+        String contents = Files.readString(file, StandardCharsets.UTF_8);
+        if (contents.isBlank()) {
+            return List.of();
+        }
+        return parseEntries(contents);
+    }
+
+    private void writeAndSync(Path file, String contents) throws IOException {
+        Files.writeString(file, contents, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING);
+        try (FileChannel channel = FileChannel.open(file, StandardOpenOption.WRITE)) {
+            channel.force(true);
+        }
+    }
+
+    private void replaceWithRecovery(Path target, Path source) throws IOException {
+        Path recoveryFile = Files.createTempFile(target.getParent(), "pending-recovery-", ".tmp");
+        try {
+            Files.copy(source, recoveryFile, StandardCopyOption.REPLACE_EXISTING);
+            moveAtomically(recoveryFile, target);
+        } finally {
+            Files.deleteIfExists(recoveryFile);
         }
     }
 

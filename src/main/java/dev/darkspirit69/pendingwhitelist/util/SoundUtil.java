@@ -5,7 +5,9 @@ import org.bukkit.entity.Player;
 
 import java.util.Objects;
 
-/** Keeps GUI and action sounds in one place so their volume stays consistent. */
+/**
+ * Keeps GUI and action sounds in one place so their volume stays consistent.
+ */
 public final class SoundUtil {
 
     private SoundUtil() {

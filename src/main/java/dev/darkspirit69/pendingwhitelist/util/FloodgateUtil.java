@@ -8,7 +8,10 @@ import java.lang.reflect.Method;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-/** Optional Floodgate integration kept isolated so the plugin also works without Floodgate. */
+/**
+ * Optional Floodgate integration kept isolated so the plugin also works without
+ * Floodgate.
+ */
 public final class FloodgateUtil {
 
     private static final String API_CLASS = "org.geysermc.floodgate.api.FloodgateApi";

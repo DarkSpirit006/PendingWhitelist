@@ -6,3 +6,10 @@ authors:
   - Dark_Spirit69
 website: https://github.com/DarkSpirit006/PendingWhitelist
 description: Tracks players rejected by the whitelist and provides GUI and command administration.
+
+dependencies:
+  server:
+    SkinsRestorer:
+      load: BEFORE
+      required: false
+      join-classpath: true

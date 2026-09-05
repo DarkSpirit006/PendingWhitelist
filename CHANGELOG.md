@@ -1,35 +1,80 @@
 # Changelog
 
-## [2.1.1] - 2026-09-03
+## [2.2.0] - 2026-09-05
+
+### Added
+
+- Added native Paper plugin support using `paper-plugin.yml`.
+- Added automatic grouping of Add Players entries into pending, online, and offline players.
+- Added Bedrock-first ordering within pending and online player groups.
+- Added cooldown-based suppression for repeated join-attempt notifications.
+- Added safer pending data persistence with backup recovery.
+- Added optional detailed debug logging controlled from `config.yml`.
+- Added optional SkinsRestorer integration for offline-mode skin resolution.
+
+### Improved
+
+- Improved pending player lookup and handling for large player lists.
+- Improved persistence to coalesce rapid pending-entry updates instead of writing once per change.
+- Improved whitelist name persistence to avoid redundant disk writes during GUI access.
+- Improved whitelist management for Java and Bedrock players.
+- Improved player head loading and caching in the administration GUI.
+- Improved asynchronous update checking so network requests do not block the server thread.
+- Improved update checking to avoid duplicate in-flight Modrinth requests.
+- Improved player-facing messages and GUI formatting with a consistent visual style.
+- Improved Add Players tab completion so known players are grouped and sorted consistently.
+- Improved GUI input isolation so PendingWhitelist only handles inventory input while its GUI is active.
+- Improved tab completion responsiveness by reusing the player list during rapid consecutive requests.
 
 ### Changed
 
-- Converted PendingWhitelist to a native Paper plugin using `paper-plugin.yml`.
-- Updated the plugin release version to 2.1.1.
+- Changed the minimum supported server version to Paper 1.20.1.
+- Changed repeated whitelist join notifications to respect the configured cooldown.
+- Changed `/wl version` to report updates with a clickable Modrinth download link.
+- Changed `/wl reload` to safely reload configuration and refresh runtime scheduling without replacing the running Paper plugin instance.
 
+### Fixed
+
+- Fixed `/wl add` failing when GUI layouts contained intentional empty slots.
+- Fixed update checks incorrectly treating a newer installed version as an available update.
+- Fixed several player identity and whitelist name resolution edge cases.
+- Fixed pending join-attempt processing so Bukkit state is updated on the server thread when the login event is asynchronous.
+- Fixed GUI transitions so stale inventory close events cannot disable input handling for the newly opened view.
 
 ## [2.1.0] - 2026-09-02
 
 ### Changed
 
 - Added Paper 1.20.1 compatibility baseline.
-- Updated the build to use JDK 25 while emitting Java 21-compatible bytecode.
-- Updated project version to 2.1.0.
 
 ## [2.0.0] - 2026-09-01
 
-### Major Update
+### Added
 
-- Redesigned the administration GUIs and interactions.
-- Unified Add Players and Whitelisted Players layouts and navigation.
-- Added row-safe Java and Bedrock grouping.
-- Added Shift-click page-wide add and remove actions.
-- Added asynchronous skin caching and live GUI skin updates.
-- Improved Floodgate identity and username-prefix handling.
-- Removed GUI refresh/reload controls; screens rebuild their data automatically.
-- Simplified player names and item lore to avoid duplicate or misleading text.
-- Moved the build to Gradle 9.7.1 with Kotlin DSL.
-- Made GitHub Actions builds manual and removed automatic version increments/releases.
+- Added a new in-game management GUI for pending and whitelisted players.
+- Added separate Java and Bedrock player sections in the GUI.
+- Added bulk add and remove actions for players on the current page.
+- Added player skin loading and caching for GUI player heads.
+- Added improved Floodgate support and Bedrock username handling.
+- Added better UUID handling for Java and Bedrock players.
+- Added `/wl version` for checking the installed version and available updates.
+- Added configurable cleanup handling for expired pending players.
+- Added sound feedback for GUI actions and notifications.
+
+### Improved
+
+- Improved pending whitelist request tracking and player information.
+- Improved whitelist handling for Floodgate players.
+- Improved player name handling and persistence.
+- Improved GUI navigation and player grouping.
+- Improved command handling and tab completion.
+- Improved whitelist entry handling to avoid duplicate or incomplete entries.
+- Improved automatic handling of pending player data.
+
+### Changed
+
+- Reworked the whitelist administration interface.
+- Removed the need to manually manage pending player data through server files.
 
 ## [1.2.7] - 2026-08-07
 
@@ -44,16 +89,18 @@
 ### Added
 
 - Added automatic plugin update checking.
-- Added update check logging.
 - Added handling for invalid or unavailable version information.
 - Added HTTP redirect support for update checks.
+
+### Improved
+
+- Improved update-check handling.
 
 ## [1.2.5] - 2026-08-07
 
 ### Improved
 
-- Improved plugin update checking.
-- Improved handling of update information and version tags.
+- Improved plugin update checking and version handling.
 
 ## [1.2.4] - 2026-08-07
 
@@ -67,8 +114,7 @@
 
 ### Added
 
-- Added plugin update checking.
-- Added update-related logging.
+- Added plugin update checking and update-related logging.
 
 ### Improved
 

@@ -35,7 +35,7 @@
 [license-badge]: https://img.shields.io/github/license/DarkSpirit006/PendingWhitelist?style=for-the-badge&logo=opensourceinitiative&logoColor=white&label=License&labelColor=30363d&color=3fb950
 [license-link]: LICENSE
 
-PendingWhitelist records players rejected by a server whitelist and gives staff a fast, in-game way to review and manage them. Version 2.1.1 is a compatibility-focused update with unified layouts, Bedrock support, background skin handling, and live GUI updates.
+PendingWhitelist records players rejected by a server whitelist and gives staff a fast, in-game way to review and manage them. Version 2.2.0 is a compatibility-focused update with unified layouts, Bedrock support, background skin handling, and live GUI updates.
 
 ## Features
 
@@ -62,7 +62,9 @@ PendingWhitelist records players rejected by a server whitelist and gives staff 
 - Paper or Purpur using the Paper API 1.20.1 or newer
 - Paper 26.1+ requires Java 25 on the server
 - Floodgate is optional and is used when installed.
-- SkinsRestorer is optional and is used as a skin provider when installed.
+- SkinsRestorer is optional and is used as the skin provider on offline-mode servers when installed.
+- Skin textures are cached for one hour and persisted in `skin-cache.json` so recent skins survive server restarts. Generic offline profiles are cached for 10 minutes. Expired entries are refreshed only when needed.
+- Offline-mode servers do not query Mojang for skins. PendingWhitelist uses an available server-stored profile first, then SkinsRestorer when present, and falls back to the local generic profile without a remote lookup. Pending requests use that generic profile immediately, even before the player has joined.
 
 ## Build
 
@@ -75,7 +77,11 @@ The project uses **Gradle 9.7.1** and Kotlin DSL.
 .\gradlew.bat clean build
 ```
 
-The plugin JAR is written to `build/libs/PendingWhitelist-2.1.1.jar`.
+A build produces one JAR:
+
+- `build/libs/PendingWhitelist-<version>.jar` — release build.
+
+Detailed debug logging can be enabled in `config.yml` when troubleshooting.
 
 ## Install
 
@@ -97,7 +103,7 @@ The plugin JAR is written to `build/libs/PendingWhitelist-2.1.1.jar`.
 | `/wl pl [page]` | Shows only pending players in chat. |
 | `/wl rpl` | Opens the Add Players GUI. |
 | `/wl rpl <player...>` | Removes players from pending storage only. |
-| `/wl reload` | Reloads configuration and pending data. |
+| `/wl reload` | Restarts PendingWhitelist and reloads its configuration and runtime services. |
 | `/wl on` | Enables the server whitelist. |
 | `/wl off` | Disables the server whitelist. |
 | `/wl version` | Checks the latest stable Modrinth release. |
@@ -108,7 +114,7 @@ The plugin JAR is written to `build/libs/PendingWhitelist-2.1.1.jar`.
 
 The dashboard contains the main administration actions:
 
-- **Add Players** — pending players first, followed by other known non-whitelisted players.
+- **Add Players** — pending players first, followed by online players and then previously joined offline players. Bedrock players appear before Java players within pending and online groups.
 - **Whitelisted Players** — all currently whitelisted players, with direct removal.
 - **Configure** — edit the supported plugin settings.
 - **Close** — closes the administration interface.
@@ -120,18 +126,28 @@ Player names are displayed once as the item title. UUIDs are included in player-
 ## Configuration
 
 ```yaml
+logging:
+  debug: false
+
 page-size: 10
+
+notifications:
+  join-attempts: true
+  join-attempt-cooldown-seconds: 60
 
 purge:
   enabled: true
   days: 30
 ```
 
+- `logging.debug` enables detailed diagnostic logging for troubleshooting. Keep it disabled during normal production operation unless needed.
 - `page-size` controls the chat `/wl list [page]` and `/wl pl [page]` output.
+- `notifications.join-attempts` controls whether staff receive join-attempt notifications.
+- `notifications.join-attempt-cooldown-seconds` limits repeated notifications for the same player. Set it to `0` to notify on every attempt.
 - `purge.enabled` controls automatic cleanup of old pending requests.
 - `purge.days` controls the age at which pending requests become eligible for cleanup.
 
-The supported settings can also be changed from **/wl -> Configure** and are saved immediately.
+Configuration settings can be changed from **/wl -> Configure** and are saved immediately. The debug logging setting takes effect as soon as it is toggled. Changes made directly in `config.yml` take effect after `/wl reload`. Missing configuration keys are added automatically while existing values are preserved.
 
 ## Data and identity handling
 
@@ -139,7 +155,7 @@ Pending requests are stored in `plugins/PendingWhitelist/pending.json` and writt
 
 For Floodgate players, PendingWhitelist preserves the Floodgate UUID and applies the configured Floodgate username prefix when writing the whitelist entry. This avoids treating Bedrock identities as ordinary Java accounts.
 
-Skin lookups run outside the server thread. Cached textures are reused, duplicate requests share a single in-flight request, and temporary failures are backed off to avoid repeated remote requests.
+External skin lookups run on dedicated worker threads. Cached results are reused, duplicate requests share a single in-flight request, and temporary failures are backed off to avoid repeated remote requests. A pending player's cache is removed when the pending request is removed or purged.
 
 ## Update checks
 

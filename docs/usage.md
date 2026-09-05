@@ -11,12 +11,12 @@
 - `/wl pl [page]` — shows only pending players in chat.
 - `/wl rpl` — opens the Add Players GUI.
 - `/wl rpl <player...>` — removes players from pending storage only.
-- `/wl reload` — reloads configuration and pending data.
+- `/wl reload` — reloads PendingWhitelist configuration without replacing the running Paper plugin instance.
 - `/wl version` — checks the latest stable Modrinth release.
 
 ## Add Players GUI
 
-The Add Players screen contains pending requests first, followed by other known players who are not currently whitelisted. Java and Bedrock entries are kept in separate row-aligned groups.
+The Add Players screen is ordered as pending players first, online players second, and previously joined offline players last. Pending and online players are sorted with Bedrock players first, then Java players; each group is alphabetical by player name.
 
 - **Left-click** — add the selected player to the whitelist.
 - **Shift-click** — add every player on the current page.
@@ -46,3 +46,9 @@ When a non-whitelisted player is rejected, administrators with `pendingwhitelist
 - `/wl off` disables the server whitelist.
 - `/wl list [page]` shows only currently whitelisted players in chat.
 - `/wl pl [page]` shows only pending players in chat.
+
+## Build artifacts
+
+A normal Gradle build produces one JAR:
+
+- `build/libs/PendingWhitelist-<version>.jar` — production release build.
