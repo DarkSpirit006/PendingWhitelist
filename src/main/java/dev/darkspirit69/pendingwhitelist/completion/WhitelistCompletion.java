@@ -100,64 +100,18 @@ public class WhitelistCompletion implements TabCompleter {
             return cachedAddSuggestions;
         }
 
-        Set<String> whitelisted = new HashSet<>();
-        for (String name : pendingStorage.getWhitelistedUsernames()) {
-            if (name != null) {
-                whitelisted.add(name.toLowerCase(Locale.ROOT));
-            }
-        }
+        Set<String> whitelisted = getWhitelistedNames();
+        Set<String> seen = new HashSet<>();
         List<String> pendingBedrock = new ArrayList<>();
         List<String> pendingJava = new ArrayList<>();
         List<String> onlineBedrock = new ArrayList<>();
         List<String> onlineJava = new ArrayList<>();
         List<String> offlineBedrock = new ArrayList<>();
         List<String> offlineJava = new ArrayList<>();
-        java.util.Set<String> seen = new java.util.HashSet<>();
 
-        for (var entry : pendingStorage.getPendingEntriesSortedByRecencyDesc()) {
-            String name = entry.name();
-            if (name == null || name.isBlank()) {
-                name = entry.displayName();
-            }
-            if (!isAvailable(name, whitelisted, seen)) {
-                continue;
-            }
-            if (pendingStorage.isFloodgateUuid(entry.uuid())) {
-                pendingBedrock.add(name);
-            } else {
-                pendingJava.add(name);
-            }
-        }
-
-        for (var player : Bukkit.getOnlinePlayers()) {
-            String name = player.getName();
-            if (!isAvailable(name, whitelisted, seen)) {
-                continue;
-            }
-            if (pendingStorage.isPending(name)) {
-                continue;
-            }
-            if (pendingStorage.isFloodgateUuid(player.getUniqueId().toString())) {
-                onlineBedrock.add(name);
-            } else {
-                onlineJava.add(name);
-            }
-        }
-
-        for (OfflinePlayer player : Bukkit.getOfflinePlayers()) {
-            if (player.isOnline() || !player.hasPlayedBefore()) {
-                continue;
-            }
-            String name = player.getName();
-            if (!isAvailable(name, whitelisted, seen)) {
-                continue;
-            }
-            if (pendingStorage.isFloodgateUuid(player.getUniqueId().toString())) {
-                offlineBedrock.add(name);
-            } else {
-                offlineJava.add(name);
-            }
-        }
+        collectPendingSuggestions(whitelisted, seen, pendingBedrock, pendingJava);
+        collectOnlineSuggestions(whitelisted, seen, onlineBedrock, onlineJava);
+        collectOfflineSuggestions(whitelisted, seen, offlineBedrock, offlineJava);
 
         sortSuggestions(pendingBedrock);
         sortSuggestions(pendingJava);
@@ -176,6 +130,76 @@ public class WhitelistCompletion implements TabCompleter {
         cachedAddSuggestions = List.copyOf(suggestions);
         cachedAddSuggestionsAt = now;
         return cachedAddSuggestions;
+    }
+
+    private Set<String> getWhitelistedNames() {
+        Set<String> whitelisted = new HashSet<>();
+        for (String name : pendingStorage.getWhitelistedUsernames()) {
+            if (name != null) {
+                whitelisted.add(name.toLowerCase(Locale.ROOT));
+            }
+        }
+        return whitelisted;
+    }
+
+    private void collectPendingSuggestions(
+            Set<String> whitelisted,
+            Set<String> seen,
+            List<String> bedrock,
+            List<String> java) {
+        for (var entry : pendingStorage.getPendingEntriesSortedByRecencyDesc()) {
+            String name = entry.name();
+            if (name == null || name.isBlank()) {
+                name = entry.displayName();
+            }
+            if (!isAvailable(name, whitelisted, seen)) {
+                continue;
+            }
+            if (pendingStorage.isFloodgateUuid(entry.uuid())) {
+                bedrock.add(name);
+            } else {
+                java.add(name);
+            }
+        }
+    }
+
+    private void collectOnlineSuggestions(
+            Set<String> whitelisted,
+            Set<String> seen,
+            List<String> bedrock,
+            List<String> java) {
+        for (var player : Bukkit.getOnlinePlayers()) {
+            String name = player.getName();
+            if (!isAvailable(name, whitelisted, seen) || pendingStorage.isPending(name)) {
+                continue;
+            }
+            if (pendingStorage.isFloodgateUuid(player.getUniqueId().toString())) {
+                bedrock.add(name);
+            } else {
+                java.add(name);
+            }
+        }
+    }
+
+    private void collectOfflineSuggestions(
+            Set<String> whitelisted,
+            Set<String> seen,
+            List<String> bedrock,
+            List<String> java) {
+        for (OfflinePlayer player : Bukkit.getOfflinePlayers()) {
+            if (player.isOnline() || !player.hasPlayedBefore()) {
+                continue;
+            }
+            String name = player.getName();
+            if (!isAvailable(name, whitelisted, seen)) {
+                continue;
+            }
+            if (pendingStorage.isFloodgateUuid(player.getUniqueId().toString())) {
+                bedrock.add(name);
+            } else {
+                java.add(name);
+            }
+        }
     }
 
     private boolean isAvailable(String name, Set<String> whitelisted, Set<String> seen) {
