@@ -1,38 +1,49 @@
 # Contributing
 
-Thanks for helping improve PendingWhitelist.
+Thanks for taking the time to improve PendingWhitelist.
 
-## Before Opening An Issue
+## Before opening an issue
 
-- Search existing issues first.
-- For bugs, include the plugin version, server version, Java version, and reproduction steps.
-- Include relevant logs or sanitized `pending.json` / `whitelist.json` snippets when storage behavior is involved.
+Search existing issues first. For a bug report, include:
+
+- PendingWhitelist version
+- Minecraft/server version and server software
+- Java version
+- Steps to reproduce the problem
+- Relevant console output or a sanitized configuration snippet
+
+Do not post passwords, tokens, IP addresses, or private server data.
 
 ## Development
 
-1. Fork the repository.
-2. Create a focused feature or fix branch.
-3. Build locally before opening a pull request.
+Fork the repository and keep changes focused. Build the project before opening a pull request.
+
+Windows:
 
 ```powershell
-.\gradlew.bat build
+.\gradlew.bat clean build
 ```
 
-On Linux or macOS:
+Linux/macOS:
 
 ```bash
-./gradlew build
+./gradlew clean build
 ```
 
-## Contribution Terms
+When a change affects a command, configuration option, compatibility, or integration, update the relevant documentation and changelog entry.
 
-Only submit contributions that you wrote yourself or have the legal right to
-submit. Contributions are made available under the [MIT License](LICENSE).
+## Pull requests
 
-## Pull Request Checklist
+Please keep pull requests small enough to review easily and avoid unrelated formatting changes. Include a short explanation of what changed and why.
+
+Before opening the pull request, check that:
 
 - [ ] The project builds successfully.
-- [ ] Documentation was updated for behavior changes.
-- [ ] Command usage, tab completion, and `paper-plugin.yml` stay in sync.
-- [ ] Update behavior, Geyser behavior, and server-panel logging are documented when affected.
-- [ ] The change is focused and avoids unrelated formatting churn.
+- [ ] Commands and tab completion still match the documented behaviour.
+- [ ] `paper-plugin.yml` and the documentation are up to date.
+- [ ] User-facing behaviour has been tested where practical.
+- [ ] Documentation has been updated for behaviour changes.
+
+## License
+
+By contributing, you agree that your contribution is provided under the [MIT License](LICENSE).

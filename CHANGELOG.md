@@ -4,133 +4,96 @@
 
 ### Added
 
-- Added native Paper plugin support using `paper-plugin.yml`.
-- Added automatic grouping of Add Players entries into pending, online, and offline players.
-- Added Bedrock-first ordering within pending and online player groups.
-- Added cooldown-based suppression for repeated join-attempt notifications.
-- Added safer pending data persistence with backup recovery.
-- Added optional detailed debug logging controlled from `config.yml`.
-- Added optional SkinsRestorer integration for offline-mode skin resolution.
+- Added a new Paper plugin setup with a more reliable plugin lifecycle.
+- Added automatic grouping of players in the Add Players screen into pending, online, and offline players.
+- Added Bedrock-first ordering for pending and online players.
+- Added cooldown-based suppression for repeated whitelist join notifications.
+- Added safer recovery for pending player data.
+- Added optional detailed debug logging through `config.yml`.
+- Added optional SkinsRestorer support for displaying skins for offline-mode players.
 
 ### Improved
 
-- Improved pending player lookup and handling for large player lists.
-- Improved persistence to coalesce rapid pending-entry updates instead of writing once per change.
-- Improved whitelist name persistence to avoid redundant disk writes during GUI access.
+- Improved pending player lookup for servers with larger player lists.
 - Improved whitelist management for Java and Bedrock players.
 - Improved player head loading and caching in the administration GUI.
-- Improved asynchronous update checking so network requests do not block the server thread.
-- Improved update checking to avoid duplicate in-flight Modrinth requests.
-- Improved player-facing messages and GUI formatting with a consistent visual style.
-- Improved Add Players tab completion so known players are grouped and sorted consistently.
-- Improved GUI input isolation so PendingWhitelist only handles inventory input while its GUI is active.
-- Improved tab completion responsiveness by reusing the player list during rapid consecutive requests.
+- Improved player-facing messages and GUI formatting.
+- Improved Add Players tab completion and player sorting.
+- Improved GUI input handling when switching between views.
+- Improved tab completion responsiveness.
+- Improved pending data handling to reduce unnecessary disk writes.
 
 ### Changed
 
 - Changed the minimum supported server version to Paper 1.20.1.
 - Changed repeated whitelist join notifications to respect the configured cooldown.
-- Changed `/wl version` to report updates with a clickable Modrinth download link.
-- Changed `/wl reload` to safely reload configuration and refresh runtime scheduling without replacing the running Paper plugin instance.
+- Changed `/wl version` to show available updates with a clickable Modrinth download link.
+- Changed `/wl reload` to safely reload the plugin configuration and refresh runtime tasks.
 
 ### Fixed
 
 - Fixed `/wl add` failing when GUI layouts contained intentional empty slots.
-- Fixed update checks incorrectly treating a newer installed version as an available update.
-- Fixed several player identity and whitelist name resolution edge cases.
-- Fixed pending join-attempt processing so Bukkit state is updated on the server thread when the login event is asynchronous.
-- Fixed GUI transitions so stale inventory close events cannot disable input handling for the newly opened view.
+- Fixed incorrect player identity and whitelist name handling in several cases.
+- Fixed pending join processing when the login event is asynchronous.
+- Fixed GUI transitions where stale inventory events could interfere with the newly opened screen.
+- Fixed update notifications incorrectly appearing when the installed version was already newer.
 
 ## [2.1.0] - 2026-09-02
 
-### Changed
+### Improved
 
-- Added Paper 1.20.1 compatibility baseline.
+- Improved compatibility with Paper 1.20.1.
 
 ## [2.0.0] - 2026-09-01
 
 ### Added
 
-- Added a new in-game management GUI for pending and whitelisted players.
-- Added separate Java and Bedrock player sections in the GUI.
+- Added a complete in-game management GUI for pending and whitelisted players.
+- Added separate Java and Bedrock player sections.
 - Added bulk add and remove actions for players on the current page.
-- Added player skin loading and caching for GUI player heads.
+- Added player skin loading for GUI player heads.
 - Added improved Floodgate support and Bedrock username handling.
-- Added better UUID handling for Java and Bedrock players.
-- Added `/wl version` for checking the installed version and available updates.
-- Added configurable cleanup handling for expired pending players.
+- Added improved UUID handling for Java and Bedrock players.
+- Added `/wl version` for checking the installed plugin version and available updates.
+- Added configurable cleanup of expired pending players.
 - Added sound feedback for GUI actions and notifications.
 
 ### Improved
 
-- Improved pending whitelist request tracking and player information.
+- Improved pending whitelist request tracking.
 - Improved whitelist handling for Floodgate players.
-- Improved player name handling and persistence.
+- Improved player name and UUID handling.
 - Improved GUI navigation and player grouping.
 - Improved command handling and tab completion.
-- Improved whitelist entry handling to avoid duplicate or incomplete entries.
-- Improved automatic handling of pending player data.
+- Improved duplicate and incomplete whitelist entry handling.
+- Improved automatic pending player management.
 
 ### Changed
 
 - Reworked the whitelist administration interface.
 - Removed the need to manually manage pending player data through server files.
 
-## [1.2.7] - 2026-08-07
+## [1.2.8] - 2026-08-07
 
 ### Fixed
 
 - Fixed whitelist updates being processed too early during player join.
-- Improved player join handling to ensure whitelist updates occur after the join event completes.
+- Improved join handling so whitelist updates occur after the join process completes.
 - Improved UUID handling for pending whitelist entries.
 
 ## [1.2.6] - 2026-08-07
 
 ### Added
 
-- Added automatic plugin update checking.
+- Added automatic update checking.
+- Added `/wl version` for displaying the installed plugin version and checking for updates.
 - Added handling for invalid or unavailable version information.
-- Added HTTP redirect support for update checks.
+- Added support for following HTTP redirects during update checks.
 
 ### Improved
 
-- Improved update-check handling.
-
-## [1.2.5] - 2026-08-07
-
-### Improved
-
-- Improved plugin update checking and version handling.
-
-## [1.2.4] - 2026-08-07
-
-### Added
-
-- Added `/wl version` to display the installed plugin version.
-- Added latest-version checking.
-- Added an option to update the plugin when a newer version is available.
-
-## [1.2.3] - 2026-08-07
-
-### Added
-
-- Added plugin update checking and update-related logging.
-
-### Improved
-
+- Improved update checking and version handling.
 - Improved handling of invalid version information.
-
-## [1.2.2] - 2026-08-07
-
-### Changed
-
-- No plugin functionality changes.
-
-## [1.2.1] - 2026-08-06
-
-### Changed
-
-- No plugin functionality changes.
 
 ## [1.2.0] - 2026-07-16
 
@@ -140,32 +103,25 @@
 - Added cleaner command help and list output.
 - Added grouped command results.
 - Added permission-aware and prefix-filtered tab completion.
+- Added pending whitelist tracking and persistent pending player storage.
+- Added automatic cleanup of expired pending players.
+- Added admin commands for managing pending whitelist entries.
+- Added player join handling for pending whitelist requests.
+- Added configurable plugin messages and settings.
 
 ### Changed
 
-- `/wl add` is now the whitelist action.
-- `/wl rpl` is now the pending-only removal action.
+- `/wl add` became the whitelist action.
+- `/wl rpl` became the pending-only removal action.
 - Removed duplicate public review aliases.
-- Modernized text formatting using Adventure components while keeping the legacy `TextUtil.color(...)` method available.
+- Updated message formatting for a more consistent in-game appearance.
 
 ### Fixed
 
-- Fixed pending players being added to `whitelist.json` with a blank name when a UUID was used and Bukkit did not have a cached username.
+- Fixed pending players being added to `whitelist.json` with a blank name when only a UUID was available.
 - Fixed `/wl add` potentially removing a player from the whitelist immediately after adding them.
-- Fixed stale command usage text.
-- Fixed stale tab-completion entries.
-
-## [1.0.1] - 2026-07-15
-
-### Added
-
-- Added initial pending whitelist tracking.
-- Added persistent pending player storage.
-- Added automatic purge checks for expired pending players.
-- Added admin commands for managing pending whitelist entries.
-- Added player join handling for pending whitelist requests.
-- Added command tab completion.
-- Added configurable plugin messages and settings.
+- Fixed outdated command usage text.
+- Fixed outdated tab-completion entries.
 
 ## [1.0.0] - 2026-07-15
 
@@ -175,4 +131,9 @@
 - Added the core pending whitelist system.
 - Added pending player management.
 - Added whitelist request handling.
-- Added persistent storage for pending players.
+- Added persistent pending player storage.
+- Added automatic cleanup of expired pending players.
+- Added admin commands for managing pending whitelist entries.
+- Added player join handling for pending whitelist requests.
+- Added command tab completion.
+- Added configurable plugin messages and settings.

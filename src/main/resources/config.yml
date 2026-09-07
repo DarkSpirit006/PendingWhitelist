@@ -1,4 +1,4 @@
-# Enable detailed diagnostic logging. Keep this disabled on production servers unless troubleshooting.
+# Enable detailed diagnostic logging. Keep this disabled unless troubleshooting.
 logging:
   debug: false
 

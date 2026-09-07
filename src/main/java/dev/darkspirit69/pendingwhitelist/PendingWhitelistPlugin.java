@@ -13,9 +13,12 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandMap;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bstats.bukkit.Metrics;
 
+import java.io.File;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.List;
@@ -23,16 +26,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-/**
- * Main plugin entry point; wires the command, listeners, storage, and update
- * checker together.
- */
+/** Main plugin entry point. */
 public final class PendingWhitelistPlugin extends JavaPlugin {
 
     private PendingRepository pendingStorage;
     private WlCommand wlCommand;
     private UpdateNotifier updateNotifier;
     private Command registeredCommand;
+    private Metrics metrics;
     private final Map<UUID, WlGui> guiViewers = new HashMap<>();
 
     @Override
@@ -43,6 +44,7 @@ public final class PendingWhitelistPlugin extends JavaPlugin {
         DebugLog.initialize(getLogger(), getConfig().getBoolean("logging.debug", false));
         DebugLog.info("Enabling PendingWhitelist " + getPluginMeta().getVersion()
                 + " (debug logging: " + DebugLog.isEnabled() + ")");
+        initializeMetrics();
         if (configMigrated) {
             DebugLog.info("Updated config.yml with missing configuration defaults");
         }
@@ -108,6 +110,7 @@ public final class PendingWhitelistPlugin extends JavaPlugin {
         if (pendingStorage != null) {
             pendingStorage.shutdown();
         }
+        shutdownMetrics();
         SkinHeadUtil.shutdown();
         DebugLog.info("PendingWhitelist disabled");
     }
@@ -208,6 +211,63 @@ public final class PendingWhitelistPlugin extends JavaPlugin {
         }
         config.set(path, value);
         return true;
+    }
+
+    /** Initializes bStats without making metrics a requirement for the plugin. */
+    private void initializeMetrics() {
+        final int pluginId = 33884;
+        DebugLog.debug("Initializing bStats metrics (plugin ID: " + pluginId + ")");
+
+        try {
+            metrics = new Metrics(this, pluginId);
+            DebugLog.debug("bStats Metrics initialized successfully (plugin ID: " + pluginId + ")");
+            logMetricsConfiguration(pluginId);
+        } catch (RuntimeException ex) {
+            DebugLog.error("Failed to initialize bStats metrics; continuing without metrics.", ex);
+            metrics = null;
+        }
+    }
+
+    /** Reports the effective global bStats setting without exposing the server UUID. */
+    private void logMetricsConfiguration(int pluginId) {
+        if (!DebugLog.isEnabled()) {
+            return;
+        }
+
+        File bStatsConfigFile = new File(getDataFolder().getParentFile(), "bStats/config.yml");
+        if (!bStatsConfigFile.isFile()) {
+            DebugLog.debug("bStats configuration file was not found yet; using bStats defaults.");
+            return;
+        }
+
+        YamlConfiguration bStatsConfig = YamlConfiguration.loadConfiguration(bStatsConfigFile);
+        boolean enabled = bStatsConfig.getBoolean("enabled", true);
+        DebugLog.debug("bStats reporting is " + (enabled ? "enabled" : "disabled")
+                + " for plugin ID " + pluginId + ". "
+                + "Initial submission is intentionally delayed by bStats.");
+
+        if (bStatsConfig.getBoolean("logFailedRequests", false)) {
+            DebugLog.debug("bStats is configured to log failed requests.");
+        }
+        if (bStatsConfig.getBoolean("logResponseStatusText", false)) {
+            DebugLog.debug("bStats is configured to log response status text.");
+        }
+    }
+
+    /** Stops bStats when the plugin is disabled. */
+    private void shutdownMetrics() {
+        if (metrics == null) {
+            return;
+        }
+
+        try {
+            metrics.shutdown();
+            DebugLog.debug("bStats metrics scheduler shut down");
+        } catch (RuntimeException ex) {
+            DebugLog.error("Could not shut down bStats metrics cleanly.", ex);
+        } finally {
+            metrics = null;
+        }
     }
 
     public PendingRepository getPendingStorage() {
