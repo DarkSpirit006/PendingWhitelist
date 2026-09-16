@@ -21,7 +21,7 @@ Review pending players and manage the whitelist directly in-game.
 </div>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/DarkSpirit006/PendingWhitelist/main/assets/banner.png" alt="PendingWhitelist" width="100%">
+  <img src="https://raw.githubusercontent.com/DarkSpirit006/PendingWhitelist/main/assets/banner.png" alt="PendingWhitelist Banner" width="100%">
 </p>
 
 ## What it does
@@ -30,9 +30,6 @@ When a player who is not whitelisted tries to join, PendingWhitelist saves the a
 
 Staff can then open `/wl` and see those players without having to search through the console. From there, players can be added to the whitelist, removed from it, or cleared from the pending list.
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/DarkSpirit006/PendingWhitelist/main/assets/demo.gif" alt="PendingWhitelist demo" width="900">
-</p>
 
 ## How it works
 
@@ -42,9 +39,6 @@ Staff can then open `/wl` and see those players without having to search through
 4. Staff can review the player with `/wl` or `/wl pl`.
 5. The player can be added with the GUI or `/wl add <player>`.
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/DarkSpirit006/PendingWhitelist/main/assets/pending-players.png" alt="Pending players" width="700">
-</p>
 
 ## Features
 
@@ -81,7 +75,7 @@ Within the pending and online groups, Bedrock players are shown before Java play
 **Back** returns to the dashboard. **Previous/Next** appear when another page is available.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/DarkSpirit006/PendingWhitelist/main/assets/add-players.png" alt="Add Players GUI" width="700">
+  <img src="https://raw.githubusercontent.com/DarkSpirit006/PendingWhitelist/main/assets/add-players.gif" alt="Add Players GUI" width="100%">
 </p>
 
 ### Whitelisted Players
@@ -93,7 +87,7 @@ The Whitelisted Players GUI shows the current server whitelist.
 **Shift-click** removes every player on the current page.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/DarkSpirit006/PendingWhitelist/main/assets/whitelisted-players.png" alt="Whitelisted Players GUI" width="700">
+  <img src="https://raw.githubusercontent.com/DarkSpirit006/PendingWhitelist/main/assets/whitelisted-players.gif" alt="Whitelisted Players GUI" width="100%">
 </p>
 
 ### Join notifications
@@ -109,7 +103,7 @@ The notification includes clickable actions for:
 Repeated notifications are limited by the configured cooldown.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/DarkSpirit006/PendingWhitelist/main/assets/join-notification.gif" alt="Join notification" width="800">
+  <img src="https://raw.githubusercontent.com/DarkSpirit006/PendingWhitelist/main/assets/join-notification.gif" alt="Join notification" width="100%">
 </p>
 
 ## Commands
