@@ -109,7 +109,7 @@ The notification includes clickable actions for:
 Repeated notifications are limited by the configured cooldown.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/DarkSpirit006/PendingWhitelist/src/main/assets/join-notification.gif" alt="Join notification" width="800">
+  <img src="https://raw.githubusercontent.com/DarkSpirit006/PendingWhitelist/tree/src/main/assets/join-notification.gif" alt="Join notification" width="800">
 </p>
 
 ## Commands
