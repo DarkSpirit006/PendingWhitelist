@@ -2,82 +2,115 @@
 
 # PendingWhitelist
 
-**Keep track of players who tried to join while the server whitelist was enabled. Review and manage them from one in-game interface.**
+Keep track of players who try to join while your server whitelist is enabled.
 
-[![Build][build-badge]][build-link] [![Code Quality][codefactor-badge]][codefactor-link] [![Release][release-badge]][release-link] [![Downloads][downloads-badge]][downloads-link] [![Stars][stars-badge]][stars-link] [![Java][java-badge]][java-link] [![Gradle][gradle-badge]][gradle-link] [![Paper API][paper-api-badge]][paper-link] [![License][license-badge]][license-link]
+Review pending players and manage the whitelist directly in-game.
+
+[![Build][build-badge]][build-link]
+[![Code Quality][codefactor-badge]][codefactor-link]
+[![Release][release-badge]][release-link]
+[![Downloads][downloads-badge]][downloads-link]
+[![Stars][stars-badge]][stars-link]
+[![Java][java-badge]][java-link]
+[![Gradle][gradle-badge]][gradle-link]
+[![Paper API][paper-api-badge]][paper-link]
+[![License][license-badge]][license-link]
 
 [![bStats Statistics](https://bstats.org/signatures/bukkit/PendingWhitelist.svg)](https://bstats.org/plugin/bukkit/PendingWhitelist/33884)
 
 </div>
 
-[build-badge]: https://img.shields.io/github/actions/workflow/status/DarkSpirit006/PendingWhitelist/build.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=Build
-[build-link]: https://github.com/DarkSpirit006/PendingWhitelist/actions/workflows/build.yml
-
-[codefactor-badge]: https://img.shields.io/codefactor/grade/github/DarkSpirit006/PendingWhitelist?style=for-the-badge&logo=codefactor&logoColor=white&label=Code%20Quality
-[codefactor-link]: https://www.codefactor.io/repository/github/darkspirit006/pendingwhitelist
-
-[release-badge]: https://img.shields.io/github/v/release/DarkSpirit006/PendingWhitelist?style=for-the-badge&logo=github&logoColor=white&label=Release&labelColor=30363d&color=58a6ff
-[release-link]: https://github.com/DarkSpirit006/PendingWhitelist/releases/latest
-
-[downloads-badge]: https://img.shields.io/modrinth/dt/pending-whitelist?style=for-the-badge&logo=modrinth&logoColor=white&label=Downloads&labelColor=30363d&color=9b59ff
-[downloads-link]: https://modrinth.com/plugin/pending-whitelist
-
-[stars-badge]: https://img.shields.io/github/stars/DarkSpirit006/PendingWhitelist?style=for-the-badge&logo=github&logoColor=white&label=Stars&labelColor=30363d&color=f2cc60
-[stars-link]: https://github.com/DarkSpirit006/PendingWhitelist/stargazers
-
-[java-badge]: https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2FDarkSpirit006%2FPendingWhitelist%2Fmain%2Fbuild.gradle.kts&search=JavaLanguageVersion%5C.of%5C%28%5Cs*%28%5Cd%2B%29%5Cs*%5C%29&replace=%241&style=for-the-badge&logo=openjdk&logoColor=white&label=Java&labelColor=30363d&color=f89820
-[java-link]: https://adoptium.net/temurin/
-
-[gradle-badge]: https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2FDarkSpirit006%2FPendingWhitelist%2Fmain%2Fgradle%2Fwrapper%2Fgradle-wrapper.properties&search=gradle-%28%5Cd%2B%5C.%5Cd%2B%5C.%5Cd%2B%29-bin&replace=%241&style=for-the-badge&logo=gradle&logoColor=white&label=Gradle&labelColor=30363d&color=0f6b78
-[gradle-link]: https://gradle.org/
-
-[paper-api-badge]: https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2FDarkSpirit006%2FPendingWhitelist%2Fmain%2Fbuild.gradle.kts&search=io%5C.papermc%5C.paper%3Apaper-api%3A%28%5B%5E%22%5D%2B%29&replace=%241&style=for-the-badge&logo=papermc&logoColor=white&label=Paper%20API&labelColor=30363d&color=33b5e5
-[paper-link]: https://papermc.io/
-
-[license-badge]: https://img.shields.io/github/license/DarkSpirit006/PendingWhitelist?style=for-the-badge&logo=opensourceinitiative&logoColor=white&label=License&labelColor=30363d&color=3fb950
-[license-link]: LICENSE
+<p align="center">
+  <img src="https://raw.githubusercontent.com/DarkSpirit006/PendingWhitelist/main/assets/banner.png" alt="PendingWhitelist" width="100%">
+</p>
 
 ## What it does
 
-When a player is rejected by the server whitelist, PendingWhitelist stores the attempt so staff can review it later. The `/wl` command opens a small admin dashboard where players can be added to the whitelist, removed from it, or cleared from the pending list without editing `whitelist.json` by hand.
+When a player who is not whitelisted tries to join, PendingWhitelist saves the attempt.
 
-It is designed for Paper servers and also supports Bedrock players through Floodgate. SkinsRestorer can be used as the skin provider on offline-mode servers.
+Staff can then open `/wl` and see those players without having to search through the console. From there, players can be added to the whitelist, removed from it, or cleared from the pending list.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/DarkSpirit006/PendingWhitelist/main/assets/demo.gif" alt="PendingWhitelist demo" width="900">
+</p>
 
 ## How it works
 
 1. A player tries to join while the whitelist is enabled.
-2. PendingWhitelist records the rejected attempt.
-3. Staff can review the request from the `/wl` dashboard or chat list.
-4. The player can be added to the whitelist directly from the GUI or with `/wl add <player>`.
+2. The join is rejected normally.
+3. PendingWhitelist records the attempt.
+4. Staff can review the player with `/wl` or `/wl pl`.
+5. The player can be added with the GUI or `/wl add <player>`.
 
-## Highlights
+<p align="center">
+  <img src="https://raw.githubusercontent.com/DarkSpirit006/PendingWhitelist/main/assets/pending-players.png" alt="Pending players" width="700">
+</p>
 
-- Stores the player's UUID, name, attempt count, and timestamps for rejected joins.
-- Provides an in-game dashboard and player-management GUIs.
-- Keeps pending, online, offline, Java, and Bedrock entries organised in the GUI.
-- Supports page-wide add and remove actions with shift-click.
-- Sends clickable join-attempt notifications to staff with the plugin permission.
-- Keeps skin lookups off the main server thread and caches the results.
-- Can remove old pending requests automatically.
-- Includes a `/wl version` check for the latest stable Modrinth release.
+## Features
 
-## Requirements
+- Records the player's UUID, name, attempt count, first attempt, and last attempt.
+- In-game dashboard for pending players and whitelist management.
+- Separate pending-player and whitelisted-player views.
+- Organises pending and online players by Bedrock/Java status and name.
+- Shift-click support for adding or removing every player on the current page.
+- Clickable join notifications for staff with `pendingwhitelist.admin`.
+- Configurable notification cooldown.
+- Automatic cleanup of old pending requests.
+- Background skin loading with local caching.
+- Floodgate support for Bedrock players.
+- Optional SkinsRestorer integration.
+- `/wl version` for checking the latest stable Modrinth release.
+- Local persistent storage; no separate database is required.
 
-- Paper or Purpur using the Paper API 1.20.1 or newer.
-- Java 21 or newer.
-- Floodgate is optional.
-- SkinsRestorer is optional and is used for skin lookups on offline-mode servers when available.
+## GUI
 
-For server versions that require a newer Java runtime, use the Java version required by that server release.
+### Add Players
 
-## Install
+The Add Players GUI shows players in this order:
 
-1. Stop the server.
-2. Put `PendingWhitelist-<version>.jar` in the server's `plugins` directory.
-3. Start the server.
-4. Adjust `plugins/PendingWhitelist/config.yml` if you want to change the defaults.
+1. Pending players
+2. Online players
+3. Previously joined offline players
 
-No separate bStats installation is required. bStats is bundled with the release JAR.
+Within the pending and online groups, Bedrock players are shown before Java players and names are sorted alphabetically.
+
+**Left-click** adds the selected player to the whitelist.
+
+**Shift-click** adds every player on the current page.
+
+**Back** returns to the dashboard. **Previous/Next** appear when another page is available.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/DarkSpirit006/PendingWhitelist/main/assets/add-players.png" alt="Add Players GUI" width="700">
+</p>
+
+### Whitelisted Players
+
+The Whitelisted Players GUI shows the current server whitelist.
+
+**Left-click** removes the selected player.
+
+**Shift-click** removes every player on the current page.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/DarkSpirit006/PendingWhitelist/main/assets/whitelisted-players.png" alt="Whitelisted Players GUI" width="700">
+</p>
+
+### Join notifications
+
+Staff with `pendingwhitelist.admin` can receive a notification when a non-whitelisted player is rejected.
+
+The notification includes clickable actions for:
+
+- Whitelisting the player
+- Rejecting the request
+- Opening the GUI
+
+Repeated notifications are limited by the configured cooldown.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/DarkSpirit006/PendingWhitelist/main/assets/join-notification.gif" alt="Join notification" width="800">
+</p>
 
 ## Commands
 
@@ -97,25 +130,11 @@ No separate bStats installation is required. bStats is bundled with the release 
 | `/wl reload` | Reload PendingWhitelist configuration. |
 | `/wl version` | Check for a newer stable release on Modrinth. |
 
-All `/wl` administration commands require the `pendingwhitelist.admin` permission.
-
-## GUI
-
-### Add Players
-
-The Add Players GUI shows pending requests first, followed by online players and then previously joined offline players. Within the pending and online groups, Bedrock players are shown before Java players and names are sorted alphabetically.
-
-Left-click adds the selected player. Shift-click adds every player on the current page. Navigation controls are shown only when there is another page.
-
-### Whitelisted Players
-
-The Whitelisted Players GUI lists the current whitelist and supports direct removal. Left-click removes the selected player; shift-click removes every player on the current page.
-
-### Join notifications
-
-When a non-whitelisted player is rejected, staff with `pendingwhitelist.admin` can receive a clickable notification with actions to whitelist the player, reject the request, or open the GUI. Repeated notifications are limited by the configured cooldown.
+All administration commands require `pendingwhitelist.admin`.
 
 ## Configuration
+
+The default configuration is:
 
 ```yaml
 logging:
@@ -132,37 +151,77 @@ purge:
   days: 30
 ```
 
-See [`docs/config.md`](docs/config.md) for the full list of settings and behaviour.
+See [`docs/config.md`](docs/config.md) for the full list of options and their behaviour.
+
+After changing the configuration:
+
+```text
+/wl reload
+```
+
+## Requirements
+
+- Paper or Purpur using the Paper API 1.20.1 or newer
+- Java 21 or newer
+- Floodgate is optional
+- SkinsRestorer is optional
+
+Use the Java version required by your server release if it is newer than the minimum above.
+
+## Installation
+
+1. Stop the server.
+2. Put `PendingWhitelist-<version>.jar` in the server's `plugins` directory.
+3. Start the server.
+4. Adjust `plugins/PendingWhitelist/config.yml` if needed.
+
+No separate bStats installation is required. bStats is bundled with the release JAR.
 
 ## Data and integrations
 
-Pending requests are stored in `plugins/PendingWhitelist/pending.json`. The server's normal `whitelist.json` remains managed by Paper.
+Pending requests are stored in:
 
-Floodgate users keep their Floodgate UUID and configured username prefix when they are written to the whitelist. Skin data is cached locally so repeated GUI opens do not need a fresh lookup every time.
+```text
+plugins/PendingWhitelist/pending.json
+```
 
-PendingWhitelist also reports anonymous usage statistics through bStats. See the [bStats page](https://bstats.org/plugin/bukkit/PendingWhitelist/33884) for the current statistics. Server owners can opt out through the global bStats configuration.
+Paper continues to manage the normal `whitelist.json`.
+
+With Floodgate installed, Bedrock players keep their Floodgate UUID and configured username prefix when added to the whitelist.
+
+Skin data is cached locally so the plugin does not need to perform a fresh lookup every time the GUI is opened.
+
+PendingWhitelist reports anonymous usage statistics through bStats. See the [bStats page](https://bstats.org/plugin/bukkit/PendingWhitelist/33884) for the current statistics. bStats can be disabled through its global configuration.
 
 ## Troubleshooting
 
-Enable `logging.debug` in `plugins/PendingWhitelist/config.yml` when you need more detail in the server console. The setting can also be toggled from **/wl -> Configure**.
+Enable `logging.debug` in `plugins/PendingWhitelist/config.yml` when you need more detail in the server console.
 
-For bStats troubleshooting, `plugins/bStats/config.yml` can be used to enable bStats request/response logging. bStats controls its own submission schedule, so metrics may not appear immediately after a server starts.
+The setting can also be changed from **/wl → Configure**.
+
+For bStats troubleshooting, `plugins/bStats/config.yml` can be used to enable bStats request/response logging. Metrics may take some time to appear after the server starts.
 
 ## Building from source
 
 The project uses Gradle with the Kotlin DSL.
 
+### Windows
+
 ```powershell
 .\gradlew.bat clean build
 ```
 
-On Linux or macOS:
+### Linux / macOS
 
 ```bash
 ./gradlew clean build
 ```
 
-The production JAR is written to `build/libs/PendingWhitelist-<version>.jar`.
+The production JAR is written to:
+
+```text
+build/libs/PendingWhitelist-<version>.jar
+```
 
 ## Documentation
 
@@ -174,10 +233,45 @@ The production JAR is written to `build/libs/PendingWhitelist-<version>.jar`.
 
 ## Contributing
 
-Bug reports, fixes, and feature ideas are welcome. For changes that affect commands, configuration, compatibility, or integrations, please update the relevant documentation with the pull request.
+Bug reports, fixes, and feature ideas are welcome.
+
+For changes that affect commands, configuration, compatibility, or integrations, update the relevant documentation with the pull request.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the project guidelines.
 
 ## License
 
 PendingWhitelist is licensed under the [MIT License](LICENSE).
+
+---
+
+<p align="center">
+  <sub>PendingWhitelist is a small addition to the normal whitelist system that keeps track of players who tried to join.</sub>
+</p>
+
+[build-badge]: https://img.shields.io/github/actions/workflow/status/DarkSpirit006/PendingWhitelist/build.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=Build
+[build-link]: https://github.com/DarkSpirit006/PendingWhitelist/actions/workflows/build.yml
+
+[codefactor-badge]: https://img.shields.io/codefactor/grade/github/DarkSpirit006/PendingWhitelist?style=for-the-badge&logo=codefactor&logoColor=white&label=Code%20Quality
+[codefactor-link]: https://www.codefactor.io/repository/github/darkspirit006/pendingwhitelist
+
+[release-badge]: https://img.shields.io/github/v/release/DarkSpirit006/PendingWhitelist?style=for-the-badge&logo=github&logoColor=white&label=Release
+[release-link]: https://github.com/DarkSpirit006/PendingWhitelist/releases/latest
+
+[downloads-badge]: https://img.shields.io/modrinth/dt/pending-whitelist?style=for-the-badge&logo=modrinth&logoColor=white&label=Downloads
+[downloads-link]: https://modrinth.com/plugin/pending-whitelist
+
+[stars-badge]: https://img.shields.io/github/stars/DarkSpirit006/PendingWhitelist?style=for-the-badge&logo=github&logoColor=white&label=Stars
+[stars-link]: https://github.com/DarkSpirit006/PendingWhitelist/stargazers
+
+[java-badge]: https://img.shields.io/badge/Java-21%2B-f89820?style=for-the-badge&logo=openjdk&logoColor=white&label=Java
+[java-link]: https://adoptium.net/temurin/
+
+[gradle-badge]: https://img.shields.io/badge/Gradle-Kotlin%20DSL-0f6b78?style=for-the-badge&logo=gradle&logoColor=white&label=Gradle
+[gradle-link]: https://gradle.org/
+
+[paper-api-badge]: https://img.shields.io/badge/Paper%20API-1.20.1%2B-33b5e5?style=for-the-badge&logo=papermc&logoColor=white&label=Paper%20API
+[paper-link]: https://papermc.io/
+
+[license-badge]: https://img.shields.io/github/license/DarkSpirit006/PendingWhitelist?style=for-the-badge&logo=opensourceinitiative&logoColor=white&label=License
+[license-link]: LICENSE
