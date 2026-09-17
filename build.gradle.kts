@@ -6,7 +6,7 @@ plugins {
 
 // paper-plugin.yml receives the version during processResources.
 group = "dev.darkspirit69"
-version = "2.2.1"
+version = "2.2.2"
 description = "Tracks players rejected by a server whitelist and provides a graphical admin interface."
 val pluginVersion = version.toString()
 
@@ -18,13 +18,17 @@ repositories {
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:1.20.1-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:1.20-R0.1-SNAPSHOT")
     implementation("com.google.code.gson:gson:2.13.0")
     implementation("org.bstats:bstats-bukkit:3.2.1")
+
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 java {
-    // Compile with JDK 25 and target Java 21 bytecode.
+    // Build with the JDK required by the newest supported Paper runtime.
+    // The emitted bytecode remains Java 17-compatible for the full 1.20-26.3 range.
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(25))
     }
@@ -35,8 +39,12 @@ checkstyle {
 }
 
 tasks.withType<JavaCompile>().configureEach {
-    options.release.set(21)
+    options.release.set(17)
     options.encoding = "UTF-8"
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 // Keep the version in one place.

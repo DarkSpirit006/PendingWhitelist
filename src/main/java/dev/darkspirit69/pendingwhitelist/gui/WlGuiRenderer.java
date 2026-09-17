@@ -18,7 +18,7 @@ import org.bukkit.inventory.meta.SkullMeta;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Renders whitelist administration inventories from prepared GUI data. */
+/** Builds the plugin's admin inventories. */
 final class WlGuiRenderer {
 
     private static final int GUI_SIZE = 54;
@@ -37,8 +37,8 @@ final class WlGuiRenderer {
         DebugLog.debug("Rendering MAIN GUI");
         Inventory result = Bukkit.createInventory(gui, 27, text("&bPendingWhitelist &7• Dashboard"));
         result.setItem(11, item(Material.CHEST, "&bAdd Players",
-                "&7Review pending requests and add",
-                "&7known players to the whitelist."));
+                "&7Add pending or known players",
+                "&7to the whitelist."));
         result.setItem(13, item(Material.EMERALD, "&bWhitelisted Players",
                 "&7View and remove whitelisted players."));
         result.setItem(15, item(Material.COMPARATOR, "&bConfigure",
@@ -46,6 +46,12 @@ final class WlGuiRenderer {
         result.setItem(22, item(Material.BARRIER, "&cClose",
                 "&7Close this menu."));
         return result;
+    }
+
+    private ItemStack toggleItem(boolean enabled, String label, String... lore) {
+        Material material = enabled ? Material.LIME_WOOL : Material.RED_WOOL;
+        String prefix = enabled ? "&a" : "&c";
+        return item(material, prefix + label + (enabled ? ": ON" : ": OFF"), lore);
     }
 
     Inventory createAddInventory(WlGui gui) {
@@ -68,7 +74,7 @@ final class WlGuiRenderer {
         }
         SkinHeadUtil.prefetch(plugin, gui, visible);
         if (candidates.isEmpty()) {
-            result.setItem(22, item(Material.LIME_WOOL, "&aEveryone is whitelisted",
+            result.setItem(22, item(Material.LIME_WOOL, "&aNo players to add",
                     "&7There are no known non-whitelisted players."));
         }
         addNavigation(result, gui.getPage(), gui.getAddPageCount());
@@ -78,7 +84,12 @@ final class WlGuiRenderer {
     Inventory createWhitelistedInventory(WlGui gui) {
         DebugLog.debug("Rendering WHITELISTED GUI: page=" + gui.getPage());
         List<WlGui.WhitelistEntry> layout = gui.getWhitelistLayout();
-        int entryCount = gui.getWhitelistEntries().size();
+        int entryCount = 0;
+        for (WlGui.WhitelistEntry entry : layout) {
+            if (entry != null) {
+                entryCount++;
+            }
+        }
         Inventory result = Bukkit.createInventory(gui, GUI_SIZE,
                 text("&bPendingWhitelist &7• Whitelisted Players &f(" + entryCount + ")"));
         int start = (gui.getPage() - 1) * WlGui.PLAYER_SLOTS;
@@ -93,10 +104,11 @@ final class WlGuiRenderer {
                     ? "&bBedrock"
                     : "&fJava";
             result.setItem(index - start, playerHeadNamed(entry.player(), entry.name(),
-                    "&7Status: &aWhitelisted", "&7Type: " + type,
+                    "&7Status: &aWhitelisted",
+                    "&7Type: " + type,
                     "&7UUID: &f" + entry.player().getUniqueId(),
-                    "&7Left-click: &7Remove from whitelist",
-                    "&7Shift-left-click: &7Remove this page"));
+                    "&7Left-click: &fRemove from whitelist",
+                    "&7Shift-left-click: &fRemove this page"));
             visible.add(entry);
         }
         SkinHeadUtil.prefetchWhitelisted(plugin, gui, visible);
@@ -119,8 +131,7 @@ final class WlGuiRenderer {
         boolean whitelistEnabled = plugin.getServer().hasWhitelist();
 
         // Four centered controls on each of the two content rows.
-        result.setItem(10, item(purgeEnabled ? Material.LIME_WOOL : Material.RED_WOOL,
-                purgeEnabled ? "&aAutomatic Purge: ON" : "&cAutomatic Purge: OFF",
+        result.setItem(10, toggleItem(purgeEnabled, "Automatic Purge",
                 "&7Automatically remove old pending entries.",
                 "&7Left-click: &fToggle automatic purge"));
         result.setItem(12, item(Material.CLOCK, "&bPurge Age: &f" + purgeDays + " days",
@@ -131,17 +142,14 @@ final class WlGuiRenderer {
                 "&7Players shown per GUI page.",
                 "&7Left-click: &fIncrease by 1",
                 "&7Right-click: &fDecrease by 1"));
-        result.setItem(16, item(joinNotifications ? Material.LIME_DYE : Material.GRAY_DYE,
-                joinNotifications ? "&aJoin Notifications: ON" : "&7Join Notifications: OFF",
+        result.setItem(16, toggleItem(joinNotifications, "Join Notifications",
                 "&7Notify staff when an unwhitelisted player attempts to join.",
                 "&7Left-click: &fToggle join notifications"));
 
-        result.setItem(19, item(debugEnabled ? Material.REDSTONE_TORCH : Material.LEVER,
-                debugEnabled ? "&aDebug Logging: ON" : "&7Debug Logging: OFF",
+        result.setItem(19, toggleItem(debugEnabled, "Debug Logging",
                 "&7Enable detailed diagnostic logs in the server console.",
                 "&7Left-click: &fToggle debug logging"));
-        result.setItem(21, item(whitelistEnabled ? Material.LIME_DYE : Material.GRAY_DYE,
-                whitelistEnabled ? "&aWhitelist: ON" : "&cWhitelist: OFF",
+        result.setItem(21, toggleItem(whitelistEnabled, "Whitelist",
                 whitelistEnabled ? "&7The server whitelist is enabled." : "&7The server whitelist is disabled.",
                 "&7Left-click: &fToggle server whitelist"));
         result.setItem(23, item(Material.COMPARATOR, "&bReload",
@@ -186,16 +194,20 @@ final class WlGuiRenderer {
         }
         String type = candidate.bedrock() ? "&bBedrock" : "&fJava";
         if (candidate.pending()) {
-            return playerHeadNamed(candidate.player(), name, "&7Status: " + status,
-                    "&7Type: " + type, "&7UUID: &f" + candidate.player().getUniqueId(),
-                    "&7Left-click: &7Add to whitelist",
-                    "&7Shift-left-click: &7Add this page",
-                    "&7Right-click: &7Remove from pending");
+            return playerHeadNamed(candidate.player(), name,
+                    "&7Status: " + status,
+                    "&7Type: " + type,
+                    "&7UUID: &f" + candidate.player().getUniqueId(),
+                    "&7Left-click: &fAdd to whitelist",
+                    "&7Shift-left-click: &fAdd this page",
+                    "&7Right-click: &fRemove from pending");
         }
-        return playerHeadNamed(candidate.player(), name, "&7Status: " + status,
-                "&7Type: " + type, "&7UUID: &f" + candidate.player().getUniqueId(),
-                "&7Left-click: &7Add to whitelist",
-                "&7Shift-left-click: &7Add this page");
+        return playerHeadNamed(candidate.player(), name,
+                "&7Status: " + status,
+                "&7Type: " + type,
+                "&7UUID: &f" + candidate.player().getUniqueId(),
+                "&7Left-click: &fAdd to whitelist",
+                "&7Shift-left-click: &fAdd this page");
     }
 
     private ItemStack playerHeadNamed(OfflinePlayer player, String name, String... lore) {

@@ -207,6 +207,10 @@ public final class WlGui implements InventoryHolder {
         return data.getVisibleWhitelistedPlayers(page);
     }
 
+    List<AddCandidate> getVisibleAddCandidates() {
+        return data.getVisibleAddCandidates(page);
+    }
+
     List<AddCandidate> getAddLayout() {
         return data.getAddLayout();
     }
@@ -221,9 +225,14 @@ public final class WlGui implements InventoryHolder {
 
     private void open(Player player, Inventory newInventory) {
         inventory = newInventory;
+        player.openInventory(newInventory);
+        if (!newInventory.getViewers().contains(player)) {
+            inventory = null;
+            viewers.remove(player.getUniqueId());
+            return;
+        }
         viewers.add(player.getUniqueId());
         plugin.trackGuiViewer(player.getUniqueId(), this);
-        player.openInventory(inventory);
     }
 
     boolean onClose(UUID playerId, Inventory closedInventory) {

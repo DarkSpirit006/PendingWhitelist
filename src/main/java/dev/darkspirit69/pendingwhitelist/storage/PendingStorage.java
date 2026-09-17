@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -175,6 +176,9 @@ public final class PendingStorage implements PendingRepository {
                 : (isPlayerName(username) ? username : identifier);
 
         Component hover = Component.text()
+                .append(Component.text("Player: ", MessageStyle.SECONDARY))
+                .append(Component.text(displayName, MessageStyle.VALUE))
+                .append(Component.newline())
                 .append(Component.text("UUID: ", MessageStyle.SECONDARY))
                 .append(Component.text(uuid == null ? "unknown" : uuid.toString(), MessageStyle.VALUE))
                 .append(Component.newline())
@@ -182,21 +186,24 @@ public final class PendingStorage implements PendingRepository {
                 .append(Component.text(String.valueOf(attempts), MessageStyle.VALUE))
                 .build();
 
-        Component whitelist = action("Whitelist", MessageStyle.SUCCESS,
-                "/wl add " + commandIdentifier, "Whitelist this player");
-        Component reject = action("Reject", MessageStyle.ERROR,
+        Component add = action("Add", MessageStyle.SUCCESS,
+                "/wl add " + commandIdentifier, "Add this player to the whitelist");
+        Component remove = action("Remove", MessageStyle.ERROR,
                 "/wl rpl " + commandIdentifier, "Remove this player from pending");
         Component open = action("Open GUI", MessageStyle.PRIMARY,
-                "/wl add", "Open the pending-player GUI");
+                "/wl add", "Open the Add Players GUI");
         Component message = Component.text("PendingWhitelist", MessageStyle.PRIMARY)
-                .append(Component.newline())
+                .append(Component.space())
+                .append(Component.text("•", MessageStyle.SECONDARY))
+                .append(Component.space())
                 .append(Component.text(displayName, MessageStyle.VALUE))
-                .append(Component.text(" is waiting for whitelist review", MessageStyle.SECONDARY))
+                .append(Component.space())
+                .append(Component.text("is waiting for review", MessageStyle.SECONDARY))
                 .append(Component.newline())
                 .append(Component.text("Actions: ", MessageStyle.SECONDARY))
-                .append(whitelist)
+                .append(add)
                 .append(Component.space())
-                .append(reject)
+                .append(remove)
                 .append(Component.space())
                 .append(open)
                 .hoverEvent(HoverEvent.showText(hover));
@@ -331,8 +338,6 @@ public final class PendingStorage implements PendingRepository {
         }
         if (removed > 0) {
             invalidateRecencyCache();
-        }
-        if (removed > 0) {
             scheduleSave();
         }
         return removed;
@@ -361,19 +366,14 @@ public final class PendingStorage implements PendingRepository {
             return false;
         }
 
-        List<PendingEntry> matches = new ArrayList<>();
         PendingEntry match = findMatchingEntry(normalizedIdentifier, parseUuid(normalizedIdentifier));
-        if (match != null) {
-            matches.add(match);
-        }
-        if (matches.isEmpty()) {
+        if (match == null) {
             return false;
         }
-        for (PendingEntry entry : matches) {
-            removeFromIndexes(entry);
-            pending.remove(entry);
-            invalidateSkinCache(entry);
-        }
+
+        removeFromIndexes(match);
+        pending.remove(match);
+        invalidateSkinCache(match);
         invalidateRecencyCache();
         scheduleSave();
         return true;
@@ -407,6 +407,11 @@ public final class PendingStorage implements PendingRepository {
     @Override
     public boolean addToWhitelist(String identifier) {
         return whitelistService.addToWhitelist(identifier);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> addToWhitelistAsync(String identifier) {
+        return whitelistService.addToWhitelistAsync(identifier);
     }
 
     @Override

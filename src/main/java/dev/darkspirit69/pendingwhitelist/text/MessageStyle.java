@@ -3,10 +3,7 @@ package dev.darkspirit69.pendingwhitelist.text;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 
-/**
- * Central visual language for all player-facing PendingWhitelist messages and
- * GUI text.
- */
+/** Shared colors and legacy prefixes for player-facing text. */
 public final class MessageStyle {
 
     public static final NamedTextColor PRIMARY = NamedTextColor.AQUA;

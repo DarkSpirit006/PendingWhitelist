@@ -29,8 +29,8 @@ public final class UpdateNotifier {
                 return;
             }
             int versionsBehind = updateService.countVersionsBehind(result, installed);
-            player.sendMessage(Component.text("You are " + versionsBehind + " version(s) behind.",
-                    MessageStyle.WARNING));
+            player.sendMessage(Component.text("You are " + versionsBehind + " "
+                    + versionWord(versionsBehind) + " behind.", MessageStyle.WARNING));
             player.sendMessage(Component.text("Download the new version at:", MessageStyle.SECONDARY));
             player.sendMessage(updateLink());
         });
@@ -65,9 +65,14 @@ public final class UpdateNotifier {
         }
 
         int versionsBehind = updateService.countVersionsBehind(result, installed);
-        sender.sendMessage(Component.text("You are " + versionsBehind + " version(s) behind.", MessageStyle.WARNING));
+        sender.sendMessage(Component.text("You are " + versionsBehind + " "
+                + versionWord(versionsBehind) + " behind.", MessageStyle.WARNING));
         sender.sendMessage(Component.text("Download the new version at:", MessageStyle.SECONDARY));
         sender.sendMessage(updateLink());
+    }
+
+    private String versionWord(int count) {
+        return count == 1 ? "version" : "versions";
     }
 
     private Component updateLink() {

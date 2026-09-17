@@ -109,16 +109,13 @@ final class PendingFileStore {
 
     private List<PendingEntry> parseEntries(String contents) {
         JsonElement root = JsonParser.parseString(contents);
-        if (root.isJsonNull()) {
-            return List.of();
-        }
         if (root.isJsonArray()) {
             return parseArray(root.getAsJsonArray());
         }
         if (root.isJsonObject()) {
             return parseLegacyMap(contents);
         }
-        return List.of();
+        throw new JsonParseException("Expected a JSON array or legacy object");
     }
 
     private List<PendingEntry> parseArray(JsonArray array) {
@@ -127,15 +124,26 @@ final class PendingFileStore {
             if (!element.isJsonObject()) {
                 continue;
             }
-            JsonObject object = element.getAsJsonObject();
-            entries.add(new PendingEntry(
+            PendingEntry entry = parseEntry(element.getAsJsonObject());
+            if (entry != null) {
+                entries.add(entry);
+            }
+        }
+        return entries;
+    }
+
+    private PendingEntry parseEntry(JsonObject object) {
+        try {
+            return new PendingEntry(
                     normalize(getString(object, "uuid")),
                     normalize(getString(object, "name")),
                     getInt(object, "attempts"),
                     getLong(object, "firstAttempt"),
-                    getLong(object, "lastAttempt")));
+                    getLong(object, "lastAttempt"));
+        } catch (IllegalArgumentException | UnsupportedOperationException ex) {
+            DebugLog.debug("Skipping malformed pending entry: " + ex.getClass().getSimpleName());
+            return null;
         }
-        return entries;
     }
 
     private List<PendingEntry> parseLegacyMap(String contents) {

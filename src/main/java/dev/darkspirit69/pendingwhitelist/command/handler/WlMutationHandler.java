@@ -15,8 +15,9 @@ import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
-/** Handles whitelist mutations and plugin reload operations. */
+/** Handles whitelist changes and configuration reloads. */
 public final class WlMutationHandler {
 
     private final WlCommandContext context;
@@ -36,27 +37,67 @@ public final class WlMutationHandler {
             return true;
         }
 
-        List<String> added = new ArrayList<>();
-        List<String> alreadyWhitelisted = new ArrayList<>();
+        List<CompletableFuture<AddResult>> operations = new ArrayList<>(args.length - 1);
         for (int i = 1; i < args.length; i++) {
             String username = args[i];
             PendingEntry pendingEntry = context.repository().findPendingEntry(username);
-            boolean addedToWhitelist = context.repository().addToWhitelist(username);
-            if (addedToWhitelist) {
-                added.add(username);
+            CompletableFuture<AddResult> operation = context.repository().addToWhitelistAsync(username)
+                    .handle((added, error) -> new AddResult(username, pendingEntry, Boolean.TRUE.equals(added), error));
+            operations.add(operation);
+        }
+
+        if (operations.stream().anyMatch(operation -> !operation.isDone())) {
+            TextUtil.send(sender, MessageStyle.SECONDARY_LEGACY + "Resolving player profiles...");
+        }
+
+        CompletableFuture.allOf(operations.toArray(CompletableFuture[]::new)).thenRun(() ->
+                context.plugin().getServer().getScheduler().runTask(context.plugin(), () -> {
+                    DebugLog.debug("Whitelist add operation completed for " + operations.size() + " identifier(s)");
+                    finishAdd(sender, operations);
+                }));
+        return true;
+    }
+
+    private void finishAdd(CommandSender sender, List<CompletableFuture<AddResult>> operations) {
+        List<String> added = new ArrayList<>();
+        List<String> alreadyWhitelisted = new ArrayList<>();
+
+        for (CompletableFuture<AddResult> operation : operations) {
+            AddResult result = operation.join();
+            if (result.error() != null) {
+                DebugLog.error("Whitelist add failed for " + result.identifier() + ".", result.error());
+                continue;
+            }
+            if (result.added()) {
+                added.add(result.identifier());
+                PendingEntry pendingEntry = result.pendingEntry();
                 if (pendingEntry != null) {
-                    context.repository().removePendingOnly(username);
+                    String pendingIdentifier = pendingEntry.uuid() != null && !pendingEntry.uuid().isBlank()
+                            ? pendingEntry.uuid()
+                            : result.identifier();
+                    context.repository().removePendingOnly(pendingIdentifier);
                 }
-            } else if (context.repository().isWhitelisted(username)) {
-                alreadyWhitelisted.add(username);
+            } else if (context.repository().isWhitelisted(result.identifier())) {
+                alreadyWhitelisted.add(result.identifier());
             }
         }
 
-        sendResultGroup(sender, "&a✓ Added", added, "✔", MessageStyle.SUCCESS, "whitelisted");
-        sendResultGroup(sender, "&e• Already whitelisted", alreadyWhitelisted, "•", MessageStyle.WARNING,
+        sendAddedMessages(sender, added);
+        sendResultGroup(sender, "Already whitelisted:", alreadyWhitelisted, MessageStyle.WARNING, "",
                 "already whitelisted");
         playResultSound(sender, added, alreadyWhitelisted);
-        return true;
+    }
+
+    private record AddResult(String identifier, PendingEntry pendingEntry, boolean added, Throwable error) {
+    }
+
+    private void sendAddedMessages(CommandSender sender, List<String> identifiers) {
+        for (String identifier : identifiers) {
+            String displayName = context.repository().resolveDisplayNameForIdentifier(identifier);
+            String name = displayName == null || displayName.isBlank() ? identifier : displayName;
+            TextUtil.send(sender, MessageStyle.SUCCESS_LEGACY + "Added " + MessageStyle.VALUE_LEGACY
+                    + name + " " + MessageStyle.SECONDARY_LEGACY + "to the whitelist.");
+        }
     }
 
     public boolean remove(CommandSender sender, String[] args) {
@@ -77,8 +118,9 @@ public final class WlMutationHandler {
             }
         }
 
-        sendResultGroup(sender, "&a✓ Removed", removed, "✔", MessageStyle.SUCCESS, "removed");
-        sendResultGroup(sender, "&c✖ Not found", notFound, "•", MessageStyle.ERROR, "not found");
+        sendResultGroup(sender, "Removed", removed, MessageStyle.SUCCESS, "from the whitelist", "removed");
+        sendResultGroup(sender, "Could not remove", notFound, MessageStyle.ERROR, "from the whitelist",
+                "not whitelisted");
         playResultSound(sender, removed, notFound);
         return true;
     }
@@ -101,9 +143,9 @@ public final class WlMutationHandler {
             }
         }
 
-        sendResultGroup(sender, "&a✓ Removed from pending list", removed, "✔", MessageStyle.SUCCESS,
-                "removed from pending");
-        sendResultGroup(sender, "&c✖ Not found in pending list", notFound, "•", MessageStyle.ERROR, "not found");
+        sendResultGroup(sender, "Removed", removed, MessageStyle.SUCCESS, "from pending players", "removed");
+        sendResultGroup(sender, "Could not remove", notFound, MessageStyle.ERROR,
+                "from pending players", "not found");
         playResultSound(sender, removed, notFound);
         return true;
     }
@@ -111,7 +153,7 @@ public final class WlMutationHandler {
     public boolean toggleWhitelist(CommandSender sender, String[] args, boolean enabled) {
         DebugLog.debug("Whitelist toggle requested by " + sender.getName() + ": enabled=" + enabled);
         if (args.length != 1) {
-            TextUtil.send(sender, "&cUsage: /wl " + (enabled ? "on" : "off"));
+            TextUtil.send(sender, MessageStyle.ERROR_LEGACY + "Usage: /wl " + (enabled ? "on" : "off"));
             return true;
         }
 
@@ -126,7 +168,7 @@ public final class WlMutationHandler {
         }
 
         context.plugin().getServer().setWhitelist(enabled);
-        TextUtil.send(sender, (enabled ? MessageStyle.SUCCESS_LEGACY : MessageStyle.ERROR_LEGACY)
+        TextUtil.send(sender, (enabled ? MessageStyle.SUCCESS_LEGACY : MessageStyle.WARNING_LEGACY)
                 + (enabled ? "Whitelist enabled." : "Whitelist disabled."));
         if (sender instanceof Player player) {
             SoundUtil.success(player);
@@ -140,35 +182,35 @@ public final class WlMutationHandler {
             TextUtil.send(sender, MessageStyle.ERROR_LEGACY + "Usage: /wl reload");
             return true;
         }
-        TextUtil.send(sender, MessageStyle.PRIMARY_LEGACY + "Reloading PendingWhitelist...");
+        TextUtil.send(sender, MessageStyle.PRIMARY_LEGACY + "Reloading configuration...");
         if (context.plugin().reloadConfiguration()) {
-            TextUtil.send(sender, MessageStyle.successLegacy("PendingWhitelist reloaded successfully."));
+            TextUtil.send(sender, MessageStyle.successLegacy("Configuration reloaded."));
         } else {
             TextUtil.send(sender, MessageStyle.errorLegacy(
-                    "PendingWhitelist could not be reloaded. Check the server console."));
+                    "Could not reload configuration. Check the server console."));
         }
         return true;
     }
 
-    private void sendResultGroup(CommandSender sender, String header, List<String> identifiers, String icon,
-            NamedTextColor iconColor, String status) {
+    private void sendResultGroup(CommandSender sender, String action, List<String> identifiers,
+            NamedTextColor actionColor, String suffix, String status) {
         if (identifiers.isEmpty()) {
             return;
         }
 
-        TextUtil.send(sender, header);
         for (String identifier : identifiers) {
-            sendPlayerLine(sender, icon, identifier, iconColor, status);
+            sendPlayerLine(sender, action, identifier, actionColor, suffix, status);
         }
     }
 
-    private void sendPlayerLine(CommandSender sender, String icon, String identifier, NamedTextColor iconColor,
-            String status) {
+    private void sendPlayerLine(CommandSender sender, String action, String identifier, NamedTextColor actionColor,
+            String suffix, String status) {
         String displayName = context.repository().resolveDisplayNameForIdentifier(identifier);
         String resolvedName = displayName == null || displayName.isBlank() ? identifier : displayName;
         PendingEntry entry = context.repository().findPendingEntry(identifier);
         String uuid = entry == null || entry.uuid() == null || entry.uuid().isBlank() ? "unknown" : entry.uuid();
         String attempts = entry == null ? "0" : String.valueOf(entry.attempts());
+        String messageSuffix = suffix.isBlank() ? "." : " " + suffix + ".";
 
         if (sender instanceof Player player) {
             Component hover = Component.text()
@@ -184,13 +226,28 @@ public final class WlMutationHandler {
                     .append(Component.text("Attempts: ", MessageStyle.SECONDARY))
                     .append(Component.text(attempts, MessageStyle.VALUE))
                     .build();
-            player.sendMessage(Component.text(icon + " ", iconColor)
-                    .append(Component.text(resolvedName, MessageStyle.VALUE)
-                            .hoverEvent(HoverEvent.showText(hover))));
+            player.sendMessage(Component.text(action + " ", actionColor)
+                    .append(Component.text(resolvedName, MessageStyle.VALUE))
+                    .append(Component.text(messageSuffix, actionColor))
+                    .hoverEvent(HoverEvent.showText(hover)));
         } else {
-            TextUtil.send(sender, MessageStyle.SECONDARY_LEGACY + icon + " " + MessageStyle.VALUE_LEGACY
-                    + resolvedName + " (" + status + ")");
+            String legacyColor = legacyColor(actionColor);
+            TextUtil.send(sender, legacyColor + action + " " + MessageStyle.VALUE_LEGACY
+                    + resolvedName + MessageStyle.SECONDARY_LEGACY + messageSuffix);
         }
+    }
+
+    private String legacyColor(NamedTextColor color) {
+        if (color == MessageStyle.SUCCESS) {
+            return MessageStyle.SUCCESS_LEGACY;
+        }
+        if (color == MessageStyle.WARNING) {
+            return MessageStyle.WARNING_LEGACY;
+        }
+        if (color == MessageStyle.ERROR) {
+            return MessageStyle.ERROR_LEGACY;
+        }
+        return MessageStyle.SECONDARY_LEGACY;
     }
 
     private void playResultSound(CommandSender sender, List<String> success, List<String> failure) {

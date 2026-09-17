@@ -8,15 +8,15 @@ PendingWhitelist is managed through `/wl`. The main command opens the admin dash
 | --- | --- |
 | `/wl` | Open the admin dashboard. |
 | `/wl add` | Open the Add Players GUI. |
-| `/wl add <player>` | Add a player to the server whitelist. |
+| `/wl add <player>` | Add a player to the whitelist. |
 | `/wl list [page]` | List currently whitelisted players in chat. |
 | `/wl remove` | Open the Whitelisted Players GUI. |
-| `/wl remove <player...>` | Remove players from the server whitelist. |
-| `/wl pl [page]` | List pending whitelist requests in chat. |
+| `/wl remove <player...>` | Remove players from the whitelist. |
+| `/wl pl [page]` | List pending players in chat. |
 | `/wl rpl` | Open the Add Players GUI. |
-| `/wl rpl <player...>` | Remove players from pending storage only. |
-| `/wl on` | Enable the server whitelist. |
-| `/wl off` | Disable the server whitelist. |
+| `/wl rpl <player...>` | Remove players from the pending list. |
+| `/wl on` | Enable the whitelist. |
+| `/wl off` | Disable the whitelist. |
 | `/wl reload` | Reload the plugin configuration and runtime state. |
 | `/wl version` | Check the latest stable Modrinth release. |
 

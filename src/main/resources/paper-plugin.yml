@@ -9,6 +9,10 @@ description: Tracks players rejected by the whitelist and provides GUI and comma
 
 dependencies:
   server:
+    floodgate:
+      load: BEFORE
+      required: false
+      join-classpath: true
     SkinsRestorer:
       load: BEFORE
       required: false

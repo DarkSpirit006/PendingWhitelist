@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-/** Supplies and prepares the data consumed by the whitelist admin views. */
+/** Collects the data shown in the admin GUI. */
 final class WlGuiData {
 
     private static final int PLAYER_SLOTS = 36;
@@ -52,10 +52,10 @@ final class WlGuiData {
     }
 
     List<WlGui.WhitelistEntry> getWhitelistEntries() {
-        DebugLog.debug("Preparing whitelist GUI entries");
         if (whitelistEntriesCache != null) {
             return whitelistEntriesCache;
         }
+        DebugLog.debug("Preparing whitelist GUI entries");
         Map<UUID, String> storedNames = readStoredWhitelistNames();
         List<WlGui.WhitelistEntry> entries = new ArrayList<>();
         for (OfflinePlayer player : Bukkit.getWhitelistedPlayers()) {
@@ -70,8 +70,12 @@ final class WlGuiData {
                 name = player.getUniqueId().toString();
             }
             if (name.length() <= 64 && !name.equals(player.getUniqueId().toString())) {
-                repository.rememberWhitelistName(player.getUniqueId(), name);
-                repository.repairWhitelistJsonName(player.getUniqueId(), name);
+                UUID uuid = player.getUniqueId();
+                repository.rememberWhitelistName(uuid, name);
+                String storedName = storedNames.get(uuid);
+                if (!name.equals(storedName)) {
+                    repository.repairWhitelistJsonName(uuid, name);
+                }
             }
             entries.add(new WlGui.WhitelistEntry(player, name));
         }
@@ -81,10 +85,10 @@ final class WlGuiData {
     }
 
     List<WlGui.WhitelistEntry> getWhitelistLayout() {
-        DebugLog.debug("Preparing whitelist GUI layout");
         if (whitelistLayoutCache != null) {
             return whitelistLayoutCache;
         }
+        DebugLog.debug("Preparing whitelist GUI layout");
         List<WlGui.WhitelistEntry> onlineBedrock = new ArrayList<>();
         List<WlGui.WhitelistEntry> onlineJava = new ArrayList<>();
         List<WlGui.WhitelistEntry> offlineBedrock = new ArrayList<>();
@@ -197,10 +201,10 @@ final class WlGuiData {
     }
 
     List<WlGui.AddCandidate> getAddCandidates() {
-        DebugLog.debug("Preparing Add GUI candidates");
         if (addCandidatesCache != null) {
             return addCandidatesCache;
         }
+        DebugLog.debug("Preparing Add GUI candidates");
 
         List<List<WlGui.AddCandidate>> groups = createAddCandidateGroups();
         addCandidateGroupsCache = List.copyOf(groups);
@@ -261,12 +265,16 @@ final class WlGuiData {
             if (!isAddCandidate(name, uuid, whitelistedUuids, whitelistedNames)) {
                 continue;
             }
-            OfflinePlayer player = uuid == null ? Bukkit.getOfflinePlayer(name) : Bukkit.getOfflinePlayer(uuid);
-            WlGui.AddCandidate candidate = new WlGui.AddCandidate(
-                    player, name, true, isBedrock(uuid), player.isOnline());
-            if (uuid != null) {
-                seen.add(uuid);
+            OfflinePlayer player = uuid == null
+                    ? Bukkit.getOfflinePlayerIfCached(name)
+                    : Bukkit.getOfflinePlayer(uuid);
+            if (player == null) {
+                continue;
             }
+            UUID playerUuid = player.getUniqueId();
+            WlGui.AddCandidate candidate = new WlGui.AddCandidate(
+                    player, name, true, isBedrock(playerUuid), player.isOnline());
+            seen.add(playerUuid);
             addCandidateToGroup(candidate, pendingBedrock, pendingJava);
         }
     }
@@ -350,11 +358,25 @@ final class WlGuiData {
         return addCandidateGroupsCache.get(index);
     }
 
+    List<WlGui.AddCandidate> getVisibleAddCandidates(int page) {
+        List<WlGui.AddCandidate> layout = getAddLayout();
+        int start = (page - 1) * PLAYER_SLOTS;
+        int end = Math.min(start + PLAYER_SLOTS, layout.size());
+        List<WlGui.AddCandidate> visible = new ArrayList<>();
+        for (int index = start; index < end; index++) {
+            WlGui.AddCandidate candidate = layout.get(index);
+            if (candidate != null) {
+                visible.add(candidate);
+            }
+        }
+        return visible;
+    }
+
     List<WlGui.AddCandidate> getAddLayout() {
-        DebugLog.debug("Preparing Add GUI layout");
         if (addLayoutCache != null) {
             return addLayoutCache;
         }
+        DebugLog.debug("Preparing Add GUI layout");
         getAddCandidates();
         List<WlGui.AddCandidate> layout = new ArrayList<>();
         for (List<WlGui.AddCandidate> group : addCandidateGroupsCache) {
@@ -392,7 +414,7 @@ final class WlGuiData {
     WlGui.AddCandidate getAddCandidateAtSlot(int page, int slot) {
         int index = (page - 1) * PLAYER_SLOTS + slot;
         List<WlGui.AddCandidate> layout = getAddLayout();
-        if (slot < 0 || slot >= PLAYER_SLOTS || index >= layout.size()) {
+        if (slot < 0 || slot >= PLAYER_SLOTS || index < 0 || index >= layout.size()) {
             return null;
         }
         return layout.get(index);

@@ -18,6 +18,8 @@ import java.util.concurrent.TimeUnit;
  */
 final class PendingPersistence {
 
+    private static final long[] SAVE_RETRY_DELAYS_MS = {0L, 250L, 1000L};
+
     private final PendingFileStore fileStore;
     private final ExecutorService executor;
     private final Object saveLock = new Object();
@@ -66,7 +68,12 @@ final class PendingPersistence {
                 snapshot = latestSnapshot;
                 generation = saveGeneration;
             }
-            save(snapshot);
+            if (!save(snapshot)) {
+                synchronized (saveLock) {
+                    saveQueued = false;
+                }
+                return;
+            }
             synchronized (saveLock) {
                 if (generation == saveGeneration) {
                     saveQueued = false;
@@ -114,13 +121,29 @@ final class PendingPersistence {
         }
     }
 
-    private void save(List<PendingEntry> snapshot) {
-        DebugLog.debug("Writing pending snapshot: entries=" + snapshot.size());
-        try {
-            fileStore.save(snapshot);
-        } catch (IOException ex) {
-            DebugLog.error("Failed to save pending.json: " + ex.getMessage(), ex);
+    private boolean save(List<PendingEntry> snapshot) {
+        for (int attempt = 0; attempt < SAVE_RETRY_DELAYS_MS.length; attempt++) {
+            long delayMs = SAVE_RETRY_DELAYS_MS[attempt];
+            if (delayMs > 0L) {
+                try {
+                    Thread.sleep(delayMs);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    DebugLog.warn("Interrupted while retrying pending.json save.");
+                    return false;
+                }
+            }
+            DebugLog.debug("Writing pending snapshot: entries=" + snapshot.size() + ", attempt=" + (attempt + 1));
+            try {
+                fileStore.save(snapshot);
+                return true;
+            } catch (IOException | RuntimeException ex) {
+                DebugLog.error("Failed to save pending.json (attempt " + (attempt + 1) + "): "
+                        + ex.getMessage(), ex);
+            }
         }
+        DebugLog.warn("Pending snapshot could not be persisted after all retry attempts.");
+        return false;
     }
 
     private boolean waitFor(Future<?> future, String operation) {

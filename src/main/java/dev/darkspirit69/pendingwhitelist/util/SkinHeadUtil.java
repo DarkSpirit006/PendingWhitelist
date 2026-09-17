@@ -253,18 +253,16 @@ public final class SkinHeadUtil {
             return;
         }
         SkinData data = completedCachedSkin(player.getUniqueId(), name);
-        PlayerProfile profile = createBaseProfile(player, name);
-        if (data != null && data.hasTexture()) {
-            applySkin(profile, data);
+        if (data == null || !data.hasTexture()) {
+            return;
         }
+        PlayerProfile profile = createBaseProfile(player, name);
+        applySkin(profile, data);
         meta.setPlayerProfile(profile);
     }
 
     private static PlayerProfile createBaseProfile(OfflinePlayer player, String name) {
         UUID uuid = player.getUniqueId();
-        if (FloodgateUtil.isFloodgateId(uuid)) {
-            return Bukkit.createProfile(uuid);
-        }
         String normalized = normalizeName(name);
         if (normalized != null && normalized.length() <= 16) {
             return Bukkit.createProfile(uuid, normalized);
@@ -322,7 +320,6 @@ public final class SkinHeadUtil {
                 return existing.future();
             }
             DebugLog.debug("Skin cache miss/expired: " + normalized);
-            SkinData serverProfileSkin = null;
             boolean onlineMode = Bukkit.getOnlineMode();
             CompletableFuture<SkinData> future;
             synchronized (SKIN_EXECUTOR_LOCK) {
@@ -335,7 +332,7 @@ public final class SkinHeadUtil {
                     executor = skinExecutor;
                 }
                 future = CompletableFuture.supplyAsync(
-                        () -> loadSkin(uuid, normalized, serverProfileSkin, onlineMode), executor);
+                        () -> loadSkin(uuid, normalized, onlineMode), executor);
             }
             long expiry = now + FAILURE_TTL_MILLIS;
             CacheEntry replacement = new CacheEntry(future, expiry);
@@ -377,7 +374,7 @@ public final class SkinHeadUtil {
 
     private static void applyToWhitelistedInventory(PendingWhitelistPlugin plugin, WlGui gui,
             WlGui.WhitelistEntry entry, SkinData data) {
-        if (data == null) {
+        if (data == null || !data.hasTexture()) {
             return;
         }
         Bukkit.getScheduler().runTask(plugin, () -> {
@@ -395,7 +392,7 @@ public final class SkinHeadUtil {
 
     private static void applyToInventory(PendingWhitelistPlugin plugin, WlGui gui,
             OfflinePlayer player, String name, SkinData data, WlGui.AddCandidate candidate) {
-        if (data == null) {
+        if (data == null || !data.hasTexture()) {
             return;
         }
         Bukkit.getScheduler().runTask(plugin, () -> {
@@ -419,10 +416,10 @@ public final class SkinHeadUtil {
         if (stack == null || !(stack.getItemMeta() instanceof SkullMeta meta)) {
             return;
         }
-        PlayerProfile profile = FloodgateUtil.isFloodgateId(uuid)
-                || name == null || name.length() > 16
-                        ? Bukkit.createProfile(uuid)
-                        : Bukkit.createProfile(uuid, name);
+        String normalizedName = normalizeName(name);
+        PlayerProfile profile = normalizedName != null && normalizedName.length() <= 16
+                ? Bukkit.createProfile(uuid, normalizedName)
+                : Bukkit.createProfile(uuid);
         if (data.hasTexture()) {
             applySkin(profile, data);
         }
@@ -469,13 +466,8 @@ public final class SkinHeadUtil {
         return entry.future().getNow(null);
     }
 
-    private static SkinData loadSkin(UUID uuid, String name, SkinData serverProfileSkin, boolean onlineMode) {
+    private static SkinData loadSkin(UUID uuid, String name, boolean onlineMode) {
         DebugLog.debug("Loading skin data: name=" + name + ", uuid=" + uuid);
-
-        if (serverProfileSkin != null) {
-            DebugLog.debug("Skin resolved from the server's stored player profile: " + name);
-            return serverProfileSkin;
-        }
 
         if (FloodgateUtil.isFloodgateId(uuid)) {
             SkinData skinsRestorerSkin = loadFromSkinsRestorer(uuid, name, onlineMode);

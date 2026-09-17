@@ -1,11 +1,13 @@
 package dev.darkspirit69.pendingwhitelist.util;
 
+import dev.darkspirit69.pendingwhitelist.logging.DebugLog;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -112,12 +114,25 @@ public final class FloodgateUtil {
         try {
             Object api = getInstanceMethod.invoke(null);
             Object future = getUuidForMethod.invoke(api, gamertag);
-            Method getMethod = future.getClass().getMethod("get", long.class, TimeUnit.class);
-            Object value = getMethod.invoke(future, 2L, TimeUnit.SECONDS);
+            Object value = resolveUuidFuture(future);
             return value instanceof UUID resolved ? new Identity(resolved, gamertag) : null;
         } catch (ReflectiveOperationException | RuntimeException ex) {
             return null;
         }
+    }
+
+    private static Object resolveUuidFuture(Object future) throws ReflectiveOperationException {
+        if (future == null) {
+            return null;
+        }
+        if (Bukkit.isPrimaryThread()) {
+            if (future instanceof CompletableFuture<?> completableFuture) {
+                return completableFuture.getNow(null);
+            }
+            return null;
+        }
+        Method getMethod = future.getClass().getMethod("get", long.class, TimeUnit.class);
+        return getMethod.invoke(future, 2L, TimeUnit.SECONDS);
     }
 
     private static Identity buildIdentity(Object floodgatePlayer)
@@ -198,7 +213,7 @@ public final class FloodgateUtil {
             getXuidMethod = playerClass.getMethod("getXuid");
             getUsernameMethod = playerClass.getMethod("getUsername");
             playerPrefix = readPlayerPrefix();
-        } catch (ReflectiveOperationException ex) {
+        } catch (ReflectiveOperationException | LinkageError | SecurityException ex) {
             getInstanceMethod = null;
             isFloodgatePlayerMethod = null;
             isFloodgateIdMethod = null;
@@ -209,6 +224,7 @@ public final class FloodgateUtil {
             getXuidMethod = null;
             getUsernameMethod = null;
             playerPrefix = null;
+            DebugLog.debug("Floodgate integration unavailable: " + ex.getClass().getSimpleName());
         }
     }
 

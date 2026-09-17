@@ -74,6 +74,9 @@ public final class ModrinthClient {
         List<String> releases = new ArrayList<>();
         String latest = null;
         for (JsonElement element : versions) {
+            if (!element.isJsonObject()) {
+                continue;
+            }
             JsonObject version = element.getAsJsonObject();
             String type = getString(version, "version_type");
             if (!"release".equalsIgnoreCase(type)) {

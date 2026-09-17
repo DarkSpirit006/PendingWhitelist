@@ -96,8 +96,8 @@ Staff with `pendingwhitelist.admin` can receive a notification when a non-whitel
 
 The notification includes clickable actions for:
 
-- Whitelisting the player
-- Rejecting the request
+- Adding the player to the whitelist
+- Removing the player from pending
 - Opening the GUI
 
 Repeated notifications are limited by the configured cooldown.
@@ -118,9 +118,9 @@ Repeated notifications are limited by the configured cooldown.
 | `/wl remove <player...>` | Remove players from the whitelist. |
 | `/wl pl [page]` | List pending players in chat. |
 | `/wl rpl` | Open the Add Players GUI. |
-| `/wl rpl <player...>` | Remove players from pending storage. |
-| `/wl on` | Enable the server whitelist. |
-| `/wl off` | Disable the server whitelist. |
+| `/wl rpl <player...>` | Remove players from the pending list. |
+| `/wl on` | Enable the whitelist. |
+| `/wl off` | Disable the whitelist. |
 | `/wl reload` | Reload PendingWhitelist configuration. |
 | `/wl version` | Check for a newer stable release on Modrinth. |
 
@@ -155,12 +155,12 @@ After changing the configuration:
 
 ## Requirements
 
-- Paper or Purpur using the Paper API 1.20.1 or newer
-- Java 21 or newer
+- Paper or Purpur from Minecraft 1.20 through 26.3, using the Paper API 1.20 or newer
+- Java 21 for Minecraft 1.20 through 1.21.11, and Java 25 for Minecraft 26.1 and newer
 - Floodgate is optional
 - SkinsRestorer is optional
 
-Use the Java version required by your server release if it is newer than the minimum above.
+Use the Java version required by your server release.
 
 ## Installation
 
@@ -258,13 +258,13 @@ PendingWhitelist is licensed under the [MIT License](LICENSE).
 [stars-badge]: https://img.shields.io/github/stars/DarkSpirit006/PendingWhitelist?style=for-the-badge&logo=github&logoColor=white&label=Stars
 [stars-link]: https://github.com/DarkSpirit006/PendingWhitelist/stargazers
 
-[java-badge]: https://img.shields.io/badge/Java-21%2B-f89820?style=for-the-badge&logo=openjdk&logoColor=white&label=Java
+[java-badge]: https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2FDarkSpirit006%2FPendingWhitelist%2Frefs%2Fheads%2Fmain%2Fbuild.gradle.kts&search=options%5C.release%5C.set%5C%28%28%5Cd%2B%29%5C%29&replace=%241%2B&style=for-the-badge&logo=openjdk&logoColor=white&label=Java&color=f89820&cacheSeconds=300
 [java-link]: https://adoptium.net/temurin/
 
-[gradle-badge]: https://img.shields.io/badge/Gradle-Kotlin%20DSL-0f6b78?style=for-the-badge&logo=gradle&logoColor=white&label=Gradle
+[gradle-badge]: https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2FDarkSpirit006%2FPendingWhitelist%2Frefs%2Fheads%2Fmain%2Fgradle%2Fwrapper%2Fgradle-wrapper.properties&search=gradle-%28%5B0-9.%5D%2B%29-bin&replace=%241&style=for-the-badge&logo=gradle&logoColor=white&label=Gradle&color=0f6b78&cacheSeconds=300
 [gradle-link]: https://gradle.org/
 
-[paper-api-badge]: https://img.shields.io/badge/Paper%20API-1.20.1%2B-33b5e5?style=for-the-badge&logo=papermc&logoColor=white&label=Paper%20API
+[paper-api-badge]: https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2FDarkSpirit006%2FPendingWhitelist%2Frefs%2Fheads%2Fmain%2Fbuild.gradle.kts&search=paper-api%3A%28%5B0-9.%5D%2B%29-R&replace=%241%2B&style=for-the-badge&label=Paper%20API&color=33b5e5&cacheSeconds=300
 [paper-link]: https://papermc.io/
 
 [license-badge]: https://img.shields.io/github/license/DarkSpirit006/PendingWhitelist?style=for-the-badge&logo=opensourceinitiative&logoColor=white&label=License

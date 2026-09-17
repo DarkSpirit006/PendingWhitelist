@@ -18,7 +18,7 @@ import org.bukkit.event.inventory.InventoryCloseEvent;
 import java.util.List;
 import java.util.UUID;
 
-/** Handles clicks and navigation for the PendingWhitelist inventories. */
+/** Handles clicks and navigation for the plugin GUI. */
 public final class WlGuiListener implements Listener {
 
     private static final int PREVIOUS_SLOT = 45;
@@ -38,13 +38,11 @@ public final class WlGuiListener implements Listener {
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)
+                || !(event.getInventory().getHolder() instanceof WlGui gui)
                 || !plugin.isGuiViewer(player.getUniqueId())) {
             return;
         }
         event.setCancelled(true);
-        if (!(event.getInventory().getHolder() instanceof WlGui gui)) {
-            return;
-        }
         DebugLog.debug("Inventory click: player=" + player.getName()
                 + ", slot=" + event.getRawSlot() + ", click=" + event.getClick());
         int slot = event.getRawSlot();
@@ -67,13 +65,12 @@ public final class WlGuiListener implements Listener {
     @EventHandler
     public void onInventoryDrag(InventoryDragEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)
+                || !(event.getInventory().getHolder() instanceof WlGui)
                 || !plugin.isGuiViewer(player.getUniqueId())) {
             return;
         }
         event.setCancelled(true);
-        if (event.getInventory().getHolder() instanceof WlGui) {
-            DebugLog.debug("Inventory drag: player=" + player.getName());
-        }
+        DebugLog.debug("Inventory drag: player=" + player.getName());
     }
 
     private void handleClick(Player player, WlGui gui, int slot, boolean rightClick, boolean shiftClick) {
@@ -156,60 +153,74 @@ public final class WlGuiListener implements Listener {
         if (removed) {
             SoundUtil.success(player);
             TextUtil.send(player, MessageStyle.SUCCESS_LEGACY + "Removed " + MessageStyle.VALUE_LEGACY
-                    + candidate.name() + " " + MessageStyle.SUCCESS_LEGACY + "from pending players.");
+                    + candidate.name() + " " + MessageStyle.SECONDARY_LEGACY + "from pending players.");
         } else {
             SoundUtil.failure(player);
             TextUtil.send(player, MessageStyle.ERROR_LEGACY + "Could not remove " + MessageStyle.VALUE_LEGACY
-                    + candidate.name() + MessageStyle.ERROR_LEGACY + " from pending players.");
+                    + candidate.name() + " " + MessageStyle.ERROR_LEGACY + "from pending players.");
         }
     }
 
     private void addPlayer(Player player, WlGui.AddCandidate candidate) {
         String name = candidate.name();
         if (name == null || name.isBlank()) {
-            name = candidate.player().getName();
+            name = candidate.player() != null ? candidate.player().getName() : null;
         }
         if (name == null || name.isBlank()) {
             SoundUtil.failure(player);
-            TextUtil.send(player, MessageStyle.ERROR_LEGACY + "This player has no known username.");
+            TextUtil.send(player, MessageStyle.ERROR_LEGACY + "Could not add player: no username is known.");
             return;
         }
         if (candidate.player() != null && pendingStorage.addToWhitelist(candidate.player().getUniqueId(), name)) {
-            pendingStorage.removePendingOnly(name);
+            removePendingAfterWhitelistAdd(candidate, name);
             SoundUtil.success(player);
             TextUtil.send(player, MessageStyle.SUCCESS_LEGACY + "Added " + MessageStyle.VALUE_LEGACY
                     + name + " " + MessageStyle.SECONDARY_LEGACY + "to the whitelist.");
         } else {
             SoundUtil.failure(player);
             TextUtil.send(player, MessageStyle.ERROR_LEGACY + "Could not add " + MessageStyle.VALUE_LEGACY
-                    + name + MessageStyle.ERROR_LEGACY + " to the whitelist.");
+                    + name + " " + MessageStyle.ERROR_LEGACY + "to the whitelist.");
         }
+    }
+
+    private void removePendingAfterWhitelistAdd(WlGui.AddCandidate candidate, String fallbackName) {
+        if (candidate == null || candidate.player() == null) {
+            return;
+        }
+        UUID candidateUuid = candidate.player().getUniqueId();
+        if (candidateUuid != null && pendingStorage.removePendingOnly(candidateUuid.toString())) {
+            return;
+        }
+        if (fallbackName != null && !fallbackName.isBlank()) {
+            pendingStorage.removePendingOnly(fallbackName);
+        }
+    }
+
+    private String playerWord(int count) {
+        return count == 1 ? "player" : "players";
     }
 
     private void bulkAdd(Player player, WlGui gui) {
         int changed = 0;
-        for (int slot = 0; slot < 36; slot++) {
-            WlGui.AddCandidate candidate = gui.getAddCandidateAtSlot(slot);
-            if (candidate == null) {
-                continue;
-            }
+        for (WlGui.AddCandidate candidate : gui.getVisibleAddCandidates()) {
             String name = candidate.name();
             if ((name == null || name.isBlank()) && candidate.player() != null) {
                 name = candidate.player().getName();
             }
             if (name != null && !name.isBlank() && candidate.player() != null
                     && pendingStorage.addToWhitelist(candidate.player().getUniqueId(), name)) {
-                pendingStorage.removePendingOnly(name);
+                removePendingAfterWhitelistAdd(candidate, name);
                 changed++;
             }
         }
         if (changed > 0) {
             SoundUtil.success(player);
             TextUtil.send(player, MessageStyle.SUCCESS_LEGACY + "Added " + MessageStyle.VALUE_LEGACY
-                    + changed + " " + MessageStyle.SECONDARY_LEGACY + "player(s) to the whitelist.");
+                    + changed + " " + MessageStyle.SECONDARY_LEGACY + playerWord(changed)
+                    + " to the whitelist.");
         } else {
             SoundUtil.failure(player);
-            TextUtil.send(player, MessageStyle.WARNING_LEGACY + "No players were added.");
+            TextUtil.send(player, MessageStyle.WARNING_LEGACY + "No players were added to the whitelist.");
         }
     }
 
@@ -250,8 +261,8 @@ public final class WlGuiListener implements Listener {
                     + name + " " + MessageStyle.SECONDARY_LEGACY + "from the whitelist.");
         } else {
             SoundUtil.failure(player);
-            TextUtil.send(player, MessageStyle.ERROR_LEGACY + name + " " + MessageStyle.SECONDARY_LEGACY
-                    + "is no longer whitelisted.");
+            TextUtil.send(player, MessageStyle.ERROR_LEGACY + "Could not remove " + MessageStyle.VALUE_LEGACY
+                    + name + " " + MessageStyle.ERROR_LEGACY + "from the whitelist.");
         }
         gui.openWhitelistedPage(player, Math.min(gui.getPage(), gui.getWhitelistedPageCount()));
     }
@@ -269,10 +280,11 @@ public final class WlGuiListener implements Listener {
         if (changed > 0) {
             SoundUtil.success(player);
             TextUtil.send(player, MessageStyle.SUCCESS_LEGACY + "Removed " + MessageStyle.VALUE_LEGACY
-                    + changed + " " + MessageStyle.SECONDARY_LEGACY + "player(s) from the whitelist.");
+                    + changed + " " + MessageStyle.SECONDARY_LEGACY + playerWord(changed)
+                    + " from the whitelist.");
         } else {
             SoundUtil.failure(player);
-            TextUtil.send(player, MessageStyle.WARNING_LEGACY + "No whitelisted players were changed.");
+            TextUtil.send(player, MessageStyle.WARNING_LEGACY + "No players were removed from the whitelist.");
         }
     }
 
@@ -303,17 +315,20 @@ public final class WlGuiListener implements Listener {
         boolean enabled = !plugin.getServer().hasWhitelist();
         plugin.getServer().setWhitelist(enabled);
         SoundUtil.success(player);
-        TextUtil.send(player, MessageStyle.SUCCESS_LEGACY + "Server whitelist is now "
-                + MessageStyle.VALUE_LEGACY + (enabled ? "ON" : "OFF") + MessageStyle.SECONDARY_LEGACY + ".");
+        TextUtil.send(player, (enabled ? MessageStyle.SUCCESS_LEGACY : MessageStyle.WARNING_LEGACY)
+                + (enabled ? "Whitelist enabled." : "Whitelist disabled."));
     }
 
     private void reloadConfiguration(Player player, WlGui gui) {
         SoundUtil.click(player);
         if (!plugin.reloadConfiguration()) {
             SoundUtil.failure(player);
-            TextUtil.send(player, MessageStyle.ERROR_LEGACY + "Could not reload PendingWhitelist configuration.");
+            TextUtil.send(player, MessageStyle.ERROR_LEGACY + "Could not reload configuration. "
+                    + "Check the server console.");
             return;
         }
+        SoundUtil.success(player);
+        TextUtil.send(player, MessageStyle.SUCCESS_LEGACY + "Configuration reloaded.");
         Bukkit.getScheduler().runTask(plugin, () -> {
             if (player.isOnline()) {
                 gui.openConfig(player);
@@ -339,8 +354,8 @@ public final class WlGuiListener implements Listener {
         plugin.saveConfig();
         plugin.refreshDebugLogging();
         SoundUtil.success(player);
-        TextUtil.send(player, MessageStyle.SUCCESS_LEGACY + "Saved " + MessageStyle.VALUE_LEGACY
-                + "logging.debug: " + value);
+        TextUtil.send(player, (value ? MessageStyle.SUCCESS_LEGACY : MessageStyle.WARNING_LEGACY)
+                + (value ? "Debug logging enabled." : "Debug logging disabled."));
     }
 
     private void toggleJoinNotifications(Player player) {
@@ -348,8 +363,8 @@ public final class WlGuiListener implements Listener {
         plugin.getConfig().set("notifications.join-attempts", value);
         plugin.saveConfig();
         SoundUtil.success(player);
-        TextUtil.send(player, MessageStyle.SUCCESS_LEGACY + "Saved " + MessageStyle.VALUE_LEGACY
-                + "notifications.join-attempts: " + value);
+        TextUtil.send(player, (value ? MessageStyle.SUCCESS_LEGACY : MessageStyle.WARNING_LEGACY)
+                + (value ? "Join attempt notifications enabled." : "Join attempt notifications disabled."));
     }
 
     private void togglePurge(Player player) {
@@ -357,8 +372,8 @@ public final class WlGuiListener implements Listener {
         plugin.getConfig().set("purge.enabled", value);
         plugin.saveConfig();
         SoundUtil.success(player);
-        TextUtil.send(player, MessageStyle.SUCCESS_LEGACY + "Saved " + MessageStyle.VALUE_LEGACY
-                + "purge.enabled: " + value);
+        TextUtil.send(player, (value ? MessageStyle.SUCCESS_LEGACY : MessageStyle.WARNING_LEGACY)
+                + (value ? "Automatic purge enabled." : "Automatic purge disabled."));
     }
 
     private void updatePurgeDays(Player player, int delta) {
@@ -366,8 +381,8 @@ public final class WlGuiListener implements Listener {
         plugin.getConfig().set("purge.days", value);
         plugin.saveConfig();
         SoundUtil.success(player);
-        TextUtil.send(player, MessageStyle.SUCCESS_LEGACY + "Saved " + MessageStyle.VALUE_LEGACY
-                + "purge.days: " + value);
+        TextUtil.send(player, MessageStyle.SUCCESS_LEGACY + "Purge age set to " + MessageStyle.VALUE_LEGACY
+                + value + MessageStyle.SECONDARY_LEGACY + " days.");
     }
 
     private void updatePageSize(Player player, int delta) {
@@ -375,8 +390,8 @@ public final class WlGuiListener implements Listener {
         plugin.getConfig().set("page-size", value);
         plugin.saveConfig();
         SoundUtil.success(player);
-        TextUtil.send(player, MessageStyle.SUCCESS_LEGACY + "Saved " + MessageStyle.VALUE_LEGACY
-                + "page-size: " + value);
+        TextUtil.send(player, MessageStyle.SUCCESS_LEGACY + "Page size set to " + MessageStyle.VALUE_LEGACY
+                + value + MessageStyle.SECONDARY_LEGACY + ".");
     }
 
 }

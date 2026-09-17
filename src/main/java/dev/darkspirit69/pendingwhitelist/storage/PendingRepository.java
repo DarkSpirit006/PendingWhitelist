@@ -4,6 +4,7 @@ import dev.darkspirit69.pendingwhitelist.model.PendingEntry;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Application-facing contract for pending whitelist data and whitelist
@@ -27,6 +28,8 @@ public interface PendingRepository {
     boolean addToWhitelist(UUID uuid, String username);
 
     boolean addToWhitelist(String identifier);
+
+    CompletableFuture<Boolean> addToWhitelistAsync(String identifier);
 
     boolean addFloodgatePlayerToWhitelist(UUID uuid, String username);
 
