@@ -45,7 +45,7 @@ public final class WlGui implements InventoryHolder {
 
     public WlGui(PendingWhitelistPlugin plugin, PendingRepository repository) {
         this.plugin = plugin;
-        this.data = new WlGuiData(plugin, repository);
+        this.data = new WlGuiData(repository);
         this.renderer = new WlGuiRenderer(plugin);
     }
 

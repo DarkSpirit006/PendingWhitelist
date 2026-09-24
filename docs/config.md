@@ -41,7 +41,9 @@ The setting can be changed from **/wl -> Configure** or directly in `config.yml`
 
 Player skin textures are cached for one hour and persisted in `skin-cache.json`. Generic offline profiles are cached for 10 minutes. Expired entries are refreshed when they are needed.
 
-On offline-mode servers, PendingWhitelist prefers a server-stored profile, then SkinsRestorer when it is installed. When neither is available, it uses a local generic profile instead of querying Mojang.
+For ordinary Java players, PendingWhitelist first attempts to resolve the actual Mojang skin, then falls back to SkinsRestorer when it is installed. Bedrock/Floodgate identities are never treated as Mojang Java usernames. When no real skin is available, a local generic profile is used.
+
+Skin requests are cached for one hour after a real skin is found, failed provider lookups are cached for five minutes, and generic profiles are cached for ten minutes. External skin lookups are deduplicated, serialized, and rate-spaced so opening a GUI cannot create a request burst.
 
 Pending-player cache entries are removed when the corresponding request is removed or purged.
 

@@ -100,11 +100,12 @@ final class WlGuiRenderer {
             if (entry == null) {
                 continue;
             }
+            String status = entry.player().isOnline() ? "&aOnline" : "&7Offline";
             String type = FloodgateUtil.isFloodgateId(entry.player().getUniqueId())
                     ? "&bBedrock"
                     : "&fJava";
             result.setItem(index - start, playerHeadNamed(entry.player(), entry.name(),
-                    "&7Status: &aWhitelisted",
+                    "&7Status: " + status,
                     "&7Type: " + type,
                     "&7UUID: &f" + entry.player().getUniqueId(),
                     "&7Left-click: &fRemove from whitelist",
@@ -130,7 +131,6 @@ final class WlGuiRenderer {
         boolean debugEnabled = plugin.isDebugLoggingEnabled();
         boolean whitelistEnabled = plugin.getServer().hasWhitelist();
 
-        // Four centered controls on each of the two content rows.
         result.setItem(10, toggleItem(purgeEnabled, "Automatic Purge",
                 "&7Automatically remove old pending entries.",
                 "&7Left-click: &fToggle automatic purge"));
@@ -184,18 +184,12 @@ final class WlGuiRenderer {
 
     private ItemStack addPlayerItem(WlGui.AddCandidate candidate) {
         String name = candidate.name() == null || candidate.name().isBlank() ? "unknown" : candidate.name();
-        String status;
-        if (candidate.pending()) {
-            status = "&ePending request";
-        } else if (candidate.online()) {
-            status = "&aOnline";
-        } else {
-            status = "&7Offline";
-        }
+        String status = candidate.online() ? "&aOnline" : "&7Offline";
         String type = candidate.bedrock() ? "&bBedrock" : "&fJava";
         if (candidate.pending()) {
             return playerHeadNamed(candidate.player(), name,
                     "&7Status: " + status,
+                    "&7State: &ePending",
                     "&7Type: " + type,
                     "&7UUID: &f" + candidate.player().getUniqueId(),
                     "&7Left-click: &fAdd to whitelist",

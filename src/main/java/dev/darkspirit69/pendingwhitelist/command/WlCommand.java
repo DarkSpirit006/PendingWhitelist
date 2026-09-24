@@ -9,6 +9,7 @@ import dev.darkspirit69.pendingwhitelist.gui.WlGui;
 import dev.darkspirit69.pendingwhitelist.logging.DebugLog;
 import dev.darkspirit69.pendingwhitelist.storage.PendingRepository;
 import dev.darkspirit69.pendingwhitelist.update.UpdateNotifier;
+import dev.darkspirit69.pendingwhitelist.util.FloodgateUtil;
 import dev.darkspirit69.pendingwhitelist.util.TextUtil;
 import dev.darkspirit69.pendingwhitelist.text.MessageStyle;
 import org.bukkit.command.Command;
@@ -43,7 +44,7 @@ public final class WlCommand implements CommandExecutor, TabCompleter {
         DebugLog.debug("Command /" + label + " invoked by " + sender.getName()
                 + " with " + args.length + " argument(s)");
         if (!sender.hasPermission(WlCommandContext.ADMIN_PERMISSION)) {
-            TextUtil.send(sender, MessageStyle.errorLegacy("You do not have permission."));
+            TextUtil.send(sender, MessageStyle.errorLegacy("You do not have permission to use this command."));
             return true;
         }
 
@@ -80,6 +81,24 @@ public final class WlCommand implements CommandExecutor, TabCompleter {
         }
         updateNotifier.checkNow(sender);
         return true;
+    }
+
+    public boolean onBedrockCommand(CommandSender sender, Command command, String label, String[] args) {
+        DebugLog.debug("Command /" + label + " invoked by " + sender.getName()
+                + " with " + args.length + " argument(s)");
+        if (!sender.hasPermission(WlCommandContext.ADMIN_PERMISSION)) {
+            TextUtil.send(sender, MessageStyle.errorLegacy("You do not have permission to use this command."));
+            return true;
+        }
+        if (!FloodgateUtil.isAvailable()) {
+            TextUtil.send(sender, MessageStyle.errorLegacy("Floodgate is not available."));
+            return true;
+        }
+        if (args.length == 0 || !"add".equalsIgnoreCase(args[0])) {
+            TextUtil.send(sender, MessageStyle.ERROR_LEGACY + "Usage: /wlb add <username> [username ...]");
+            return true;
+        }
+        return mutationHandler.addBedrock(sender, args);
     }
 
     @Override

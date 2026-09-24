@@ -16,11 +16,15 @@ import java.util.function.Consumer;
 public final class UpdateService {
 
     private static final String ADMIN_PERMISSION = "pendingwhitelist.admin";
+    private static final long UPDATE_CACHE_MILLIS = java.util.concurrent.TimeUnit.HOURS.toMillis(6);
+    private static final long EMPTY_UPDATE_CACHE_MILLIS = java.util.concurrent.TimeUnit.MINUTES.toMillis(15);
 
     private final PendingWhitelistPlugin plugin;
     private final ModrinthClient client;
     private final VersionComparator versionComparator;
     private CompletableFuture<UpdateResult> inFlightCheck;
+    private UpdateResult cachedResult = UpdateResult.empty();
+    private long cachedResultAt;
 
     public UpdateService(PendingWhitelistPlugin plugin) {
         this.plugin = plugin;
@@ -63,24 +67,35 @@ public final class UpdateService {
     private void fetchAsync(Consumer<UpdateResult> callback) {
         CompletableFuture<UpdateResult> check;
         synchronized (this) {
-            if (inFlightCheck == null || inFlightCheck.isDone()) {
-                DebugLog.debug("Starting new asynchronous Modrinth update request");
-                inFlightCheck = CompletableFuture.supplyAsync(client::fetchLatestRelease);
-            } else {
+            long now = System.currentTimeMillis();
+            long cacheLifetime = cachedResult.hasRelease() ? UPDATE_CACHE_MILLIS : EMPTY_UPDATE_CACHE_MILLIS;
+            if (cachedResultAt > 0 && now - cachedResultAt < cacheLifetime) {
+                check = CompletableFuture.completedFuture(cachedResult);
+                DebugLog.debug("Using cached Modrinth update result");
+            } else if (inFlightCheck != null && !inFlightCheck.isDone()) {
+                check = inFlightCheck;
                 DebugLog.debug("Joining existing in-flight Modrinth update request");
+            } else {
+                DebugLog.debug("Starting new asynchronous Modrinth update request");
+                check = CompletableFuture.supplyAsync(client::fetchLatestRelease);
+                inFlightCheck = check;
             }
-            check = inFlightCheck;
         }
 
         check.whenComplete((result, throwable) -> {
             UpdateResult finalResult = result;
-            DebugLog.debug("Modrinth update request completed");
             if (throwable != null) {
                 Throwable cause = throwable.getCause() == null ? throwable : throwable.getCause();
                 DebugLog.error("Unexpected error while checking Modrinth for updates: " + cause.getMessage(), cause);
                 finalResult = UpdateResult.empty();
+            } else if (result != null) {
+                synchronized (UpdateService.this) {
+                    cachedResult = result;
+                    cachedResultAt = System.currentTimeMillis();
+                }
             }
-            UpdateResult deliveredResult = finalResult;
+            UpdateResult deliveredResult = finalResult == null ? UpdateResult.empty() : finalResult;
+            DebugLog.debug("Modrinth update request completed");
             Bukkit.getScheduler().runTask(plugin, () -> {
                 if (plugin.isEnabled()) {
                     callback.accept(deliveredResult);

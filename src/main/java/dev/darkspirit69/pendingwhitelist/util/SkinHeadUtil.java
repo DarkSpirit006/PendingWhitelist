@@ -1,36 +1,33 @@
 package dev.darkspirit69.pendingwhitelist.util;
 
-import dev.darkspirit69.pendingwhitelist.logging.DebugLog;
 import com.destroystokyo.paper.profile.PlayerProfile;
 import com.destroystokyo.paper.profile.ProfileProperty;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.darkspirit69.pendingwhitelist.PendingWhitelistPlugin;
 import dev.darkspirit69.pendingwhitelist.gui.WlGui;
+import dev.darkspirit69.pendingwhitelist.logging.DebugLog;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
-import org.bukkit.plugin.Plugin;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.SkullMeta;
+import org.bukkit.plugin.Plugin;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Duration;
-import java.util.Base64;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -39,10 +36,12 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -52,14 +51,24 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class SkinHeadUtil {
 
+    private static final String GEYSER_SKIN_API = "https://api.geysermc.org/v2/skin/";
+    private static final HttpClient GEYSER_HTTP_CLIENT = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(5))
+            .build();
+
     private static final String PROVIDER_CLASS = "net.skinsrestorer.api.SkinsRestorerProvider";
-    private static final String MOJANG_SESSION_URL = "https://sessionserver.mojang.com/session/minecraft/profile/";
-    private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(5);
     private static final long SUCCESS_TTL_MILLIS = TimeUnit.HOURS.toMillis(1);
     private static final long FAILURE_TTL_MILLIS = TimeUnit.MINUTES.toMillis(5);
     private static final long GENERIC_TTL_MILLIS = TimeUnit.MINUTES.toMillis(10);
-    private static final long RATE_LIMIT_TTL_MILLIS = TimeUnit.MINUTES.toMillis(5);
+    private static final long MOJANG_REQUEST_INTERVAL_MILLIS = 1_100L;
+    private static final long MOJANG_REQUEST_TIMEOUT_MILLIS = 8_000L;
+    private static final long MOJANG_BACKOFF_INITIAL_MILLIS = TimeUnit.SECONDS.toMillis(5);
+    private static final long MOJANG_BACKOFF_MAX_MILLIS = TimeUnit.MINUTES.toMillis(10);
     private static final int MAX_PERSISTENT_ENTRIES = 2048;
+    private static final Object MOJANG_REQUEST_LOCK = new Object();
+    private static long nextMojangRequestAt;
+    private static long mojangBackoffUntil;
+    private static long mojangBackoffMillis = MOJANG_BACKOFF_INITIAL_MILLIS;
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final ConcurrentMap<SkinCacheKey, CacheEntry> CACHE = new ConcurrentHashMap<>();
     private static final AtomicBoolean CACHE_SAVE_QUEUED = new AtomicBoolean();
@@ -68,12 +77,6 @@ public final class SkinHeadUtil {
     private static final Object SKIN_EXECUTOR_LOCK = new Object();
     private static volatile ExecutorService skinExecutor;
     private static volatile boolean running;
-    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
-            .connectTimeout(HTTP_TIMEOUT)
-            .build();
-    private static final Object MOJANG_REQUEST_LOCK = new Object();
-    private static long lastMojangRequestAt;
-    private static volatile long mojangCooldownUntil;
 
     private SkinHeadUtil() {
     }
@@ -85,6 +88,9 @@ public final class SkinHeadUtil {
             if (skinExecutor == null || skinExecutor.isShutdown() || skinExecutor.isTerminated()) {
                 skinExecutor = newSkinExecutor();
             }
+            nextMojangRequestAt = 0L;
+            mojangBackoffUntil = 0L;
+            mojangBackoffMillis = MOJANG_BACKOFF_INITIAL_MILLIS;
             cacheFile = plugin.getDataFolder().toPath().resolve("skin-cache.json");
             running = true;
         }
@@ -238,7 +244,7 @@ public final class SkinHeadUtil {
     }
 
     private static ExecutorService newSkinExecutor() {
-        return Executors.newFixedThreadPool(2, new SkinThreadFactory());
+        return Executors.newSingleThreadExecutor(new SkinThreadFactory());
     }
 
     public static void applyProfile(SkullMeta meta, OfflinePlayer player, String name) {
@@ -312,45 +318,69 @@ public final class SkinHeadUtil {
             return CompletableFuture.completedFuture(null);
         }
         SkinCacheKey key = new SkinCacheKey(uuid, normalized.toLowerCase(Locale.ROOT));
-        long now = System.currentTimeMillis();
         for (;;) {
+            long now = System.currentTimeMillis();
             CacheEntry existing = CACHE.get(key);
             if (existing != null && now < existing.expiresAt()) {
                 DebugLog.debug("Skin cache hit: " + normalized);
                 return existing.future();
             }
-            DebugLog.debug("Skin cache miss/expired: " + normalized);
-            boolean onlineMode = Bukkit.getOnlineMode();
-            CompletableFuture<SkinData> future;
+
+            CacheEntry replacement = new CacheEntry(new CompletableFuture<>(),
+                    now + FAILURE_TTL_MILLIS);
+            boolean installed;
             synchronized (SKIN_EXECUTOR_LOCK) {
                 if (!running) {
                     return CompletableFuture.completedFuture(null);
                 }
-                ExecutorService executor = skinExecutor;
-                if (executor == null || executor.isShutdown() || executor.isTerminated()) {
-                    skinExecutor = newSkinExecutor();
-                    executor = skinExecutor;
+                if (existing == null) {
+                    installed = CACHE.putIfAbsent(key, replacement) == null;
+                } else {
+                    installed = CACHE.replace(key, existing, replacement);
                 }
-                future = CompletableFuture.supplyAsync(
-                        () -> loadSkin(uuid, normalized, onlineMode), executor);
-            }
-            long expiry = now + FAILURE_TTL_MILLIS;
-            CacheEntry replacement = new CacheEntry(future, expiry);
-            if (existing == null) {
-                if (CACHE.putIfAbsent(key, replacement) == null) {
-                    DebugLog.debug("Started skin load: " + normalized);
-                    attachExpiryRefresh(key, replacement);
-                    return future;
+                if (installed) {
+                    ExecutorService executor = ensureSkinExecutor();
+                    try {
+                        executor.execute(() -> resolveAndComplete(key, uuid, normalized, replacement));
+                        attachExpiryRefresh(key, replacement);
+                        DebugLog.debug("Queued skin load: " + normalized);
+                    } catch (RuntimeException exception) {
+                        CACHE.remove(key, replacement);
+                        replacement.future().completeExceptionally(exception);
+                        if (executor.isShutdown()) {
+                            skinExecutor = null;
+                        }
+                    }
                 }
-            } else if (CACHE.replace(key, existing, replacement)) {
-                attachExpiryRefresh(key, replacement);
-                return future;
             }
-            existing = CACHE.get(key);
-            if (existing != null && now < existing.expiresAt()) {
+
+            if (installed) {
+                return replacement.future();
+            }
+
+            CacheEntry current = CACHE.get(key);
+            if (current != null && now < current.expiresAt()) {
                 DebugLog.debug("Skin request joined an existing load: " + normalized);
-                return existing.future();
+                return current.future();
             }
+        }
+    }
+
+    private static ExecutorService ensureSkinExecutor() {
+        ExecutorService executor = skinExecutor;
+        if (executor == null || executor.isShutdown() || executor.isTerminated()) {
+            executor = newSkinExecutor();
+            skinExecutor = executor;
+        }
+        return executor;
+    }
+
+    private static void resolveAndComplete(SkinCacheKey key, UUID uuid, String name, CacheEntry entry) {
+        try {
+            SkinData data = loadSkin(uuid, name);
+            entry.future().complete(data);
+        } catch (RuntimeException exception) {
+            entry.future().completeExceptionally(exception);
         }
     }
 
@@ -442,6 +472,40 @@ public final class SkinHeadUtil {
     }
 
     /**
+     * Refreshes a player's cached skin after a successful join. SkinsRestorer may
+     * apply or persist the player's skin slightly after the join event, so the
+     * lookup is intentionally delayed by the caller.
+     */
+    public static void refreshPlayerSkin(Player player) {
+        if (player == null) {
+            return;
+        }
+        String name = normalizeName(player.getName());
+        UUID uuid = player.getUniqueId();
+        if (name == null || uuid == null || !running) {
+            return;
+        }
+
+        SkinData liveSkin = skinDataFromProfile(player.getPlayerProfile());
+        if (liveSkin != null) {
+            SkinCacheKey key = new SkinCacheKey(uuid, name.toLowerCase(Locale.ROOT));
+            CacheEntry replacement = new CacheEntry(
+                    CompletableFuture.completedFuture(liveSkin),
+                    System.currentTimeMillis() + SUCCESS_TTL_MILLIS);
+            CACHE.put(key, replacement);
+            scheduleCacheSave();
+            DebugLog.debug("Cached live player skin after join: " + name);
+            return;
+        }
+
+        CacheEntry existing = CACHE.get(new SkinCacheKey(uuid, name.toLowerCase(Locale.ROOT)));
+        if (existing != null && System.currentTimeMillis() < existing.expiresAt()) {
+            return;
+        }
+        getSkinFuture(player, name);
+    }
+
+    /**
      * Removes every cached skin for a player, including entries created under an
      * older name.
      */
@@ -466,85 +530,185 @@ public final class SkinHeadUtil {
         return entry.future().getNow(null);
     }
 
-    private static SkinData loadSkin(UUID uuid, String name, boolean onlineMode) {
+    private static SkinData loadSkin(UUID uuid, String name) {
         DebugLog.debug("Loading skin data: name=" + name + ", uuid=" + uuid);
 
         if (FloodgateUtil.isFloodgateId(uuid)) {
-            SkinData skinsRestorerSkin = loadFromSkinsRestorer(uuid, name, onlineMode);
-            if (skinsRestorerSkin != null) {
-                DebugLog.debug("Skin resolved through SkinsRestorer: " + name);
-                return skinsRestorerSkin;
+            SkinData bedrockSkin = loadFromGeyser(uuid);
+            if (bedrockSkin != null) {
+                DebugLog.debug("Skin resolved through Geyser Global API: " + name);
+                return bedrockSkin;
             }
+            DebugLog.debug("No converted Bedrock skin found for " + name + "; using generic profile");
             return SkinData.generic();
         }
 
-        SkinData skinsRestorerSkin = loadFromSkinsRestorer(uuid, name, onlineMode);
+        SkinData mojangSkin = loadFromMojang(name);
+        if (mojangSkin != null) {
+            DebugLog.debug("Skin resolved through Mojang: " + name);
+            return mojangSkin;
+        }
+
+        SkinData skinsRestorerSkin = loadFromSkinsRestorer(uuid, name);
         if (skinsRestorerSkin != null) {
             DebugLog.debug("Skin resolved through SkinsRestorer: " + name);
             return skinsRestorerSkin;
         }
 
-        if (!onlineMode) {
-            DebugLog.debug("Offline-mode server: using generic profile for " + name);
-            return SkinData.generic();
-        }
-        if (System.currentTimeMillis() < mojangCooldownUntil) {
-            return null;
-        }
-        DebugLog.debug("Falling back to Mojang UUID lookup: " + uuid);
-        return loadFromMojangByUuid(uuid);
+        DebugLog.debug("No Mojang or SkinsRestorer skin found for " + name + "; using generic profile");
+        return SkinData.generic();
     }
 
-    private static SkinData loadFromSkinsRestorer(UUID uuid, String name, boolean onlineMode) {
+    /**
+     * Fetches the official Mojang profile while enforcing a global request interval.
+     * Cache de-duplication happens before this method, so one player cannot create
+     * multiple simultaneous lookups.
+     */
+    private static SkinData loadFromGeyser(UUID uuid) {
+        String xuid = FloodgateUtil.getXuid(uuid);
+        if (xuid == null || xuid.isBlank()) {
+            return null;
+        }
+        URI uri;
+        try {
+            uri = URI.create(GEYSER_SKIN_API + xuid);
+        } catch (IllegalArgumentException ex) {
+            DebugLog.debug("Invalid Bedrock XUID for skin lookup: " + xuid);
+            return null;
+        }
+
+        HttpRequest request = HttpRequest.newBuilder(uri)
+                .timeout(Duration.ofSeconds(8))
+                .header("Accept", "application/json")
+                .GET()
+                .build();
+        try {
+            HttpResponse<String> response = GEYSER_HTTP_CLIENT.send(request,
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (response.statusCode() != 200) {
+                DebugLog.debug("Geyser skin lookup for XUID " + xuid
+                        + " returned HTTP " + response.statusCode());
+                return null;
+            }
+            var root = JsonParser.parseString(response.body());
+            if (!root.isJsonObject()) {
+                return null;
+            }
+            var object = root.getAsJsonObject();
+            String value = object.has("value") && !object.get("value").isJsonNull()
+                    ? object.get("value").getAsString() : null;
+            String signature = object.has("signature") && !object.get("signature").isJsonNull()
+                    ? object.get("signature").getAsString() : null;
+            if (value == null || value.isBlank()) {
+                return null;
+            }
+            return new SkinData(value, signature);
+        } catch (IOException | InterruptedException | RuntimeException ex) {
+            if (ex instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            DebugLog.debug("Geyser skin lookup failed for XUID " + xuid + ": "
+                    + ex.getClass().getSimpleName()
+                    + (ex.getMessage() == null ? "" : " - " + ex.getMessage()));
+            return null;
+        }
+    }
+
+    private static SkinData skinDataFromProfile(PlayerProfile profile) {
+        if (profile == null) {
+            return null;
+        }
+        for (ProfileProperty property : profile.getProperties()) {
+            if (property != null && "textures".equals(property.getName())
+                    && property.getValue() != null && !property.getValue().isBlank()) {
+                return new SkinData(property.getValue(), property.getSignature());
+            }
+        }
+        return null;
+    }
+
+    private static SkinData loadFromMojang(String name) {
+        synchronized (MOJANG_REQUEST_LOCK) {
+            try {
+                long now = System.currentTimeMillis();
+                long backoffWait = mojangBackoffUntil - now;
+                if (backoffWait > 0) {
+                    DebugLog.debug("Mojang skin lookup delayed by backoff: " + name);
+                    Thread.sleep(backoffWait);
+                }
+
+                long waitMillis = nextMojangRequestAt - System.currentTimeMillis();
+                if (waitMillis > 0) {
+                    Thread.sleep(waitMillis);
+                }
+                nextMojangRequestAt = System.currentTimeMillis() + MOJANG_REQUEST_INTERVAL_MILLIS;
+
+                PlayerProfile profile = Bukkit.createProfile(name);
+                PlayerProfile updated = profile.update().get(MOJANG_REQUEST_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+                SkinData skin = skinDataFromProfile(updated);
+                if (skin != null) {
+                    mojangBackoffUntil = 0L;
+                    mojangBackoffMillis = MOJANG_BACKOFF_INITIAL_MILLIS;
+                    return skin;
+                }
+                mojangBackoffUntil = 0L;
+                mojangBackoffMillis = MOJANG_BACKOFF_INITIAL_MILLIS;
+                return null;
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                DebugLog.debug("Mojang skin lookup interrupted for " + name);
+            } catch (ExecutionException | TimeoutException | RuntimeException exception) {
+                if (looksLikeMojangRateLimit(exception)) {
+                    mojangBackoffUntil = System.currentTimeMillis() + mojangBackoffMillis;
+                    mojangBackoffMillis = Math.min(MOJANG_BACKOFF_MAX_MILLIS, mojangBackoffMillis * 2L);
+                    DebugLog.debug("Mojang skin lookup rate-limited for " + name
+                            + "; backing off for " + (mojangBackoffUntil - System.currentTimeMillis()) + "ms");
+                } else {
+                    DebugLog.debug("Mojang skin lookup failed for " + name + ": "
+                            + exception.getClass().getSimpleName()
+                            + (exception.getMessage() == null ? "" : " - " + exception.getMessage()));
+                }
+            }
+            return null;
+        }
+    }
+
+    private static boolean looksLikeMojangRateLimit(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null) {
+                String normalized = message.toLowerCase(Locale.ROOT);
+                if (normalized.contains("429") || normalized.contains("too many requests")
+                        || normalized.contains("rate limit") || normalized.contains("rate-limit")) {
+                    return true;
+                }
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private static SkinData loadFromSkinsRestorer(UUID uuid, String name) {
         try {
             Plugin skinsRestorer = Bukkit.getPluginManager().getPlugin("SkinsRestorer");
             if (skinsRestorer == null || !skinsRestorer.isEnabled()) {
                 return null;
             }
+
             ClassLoader classLoader = skinsRestorer.getClass().getClassLoader();
             Class<?> provider = Class.forName(PROVIDER_CLASS, true, classLoader);
             Object api = provider.getMethod("get").invoke(null);
             Object storage = api.getClass().getMethod("getPlayerStorage").invoke(api);
 
-            Optional<?> linkedResult = invokeOptional(storage, "getSkinOfPlayer",
-                    new Class<?>[] { UUID.class }, new Object[] { uuid });
-            SkinData linkedSkin = toSkinData(linkedResult);
-            if (linkedSkin != null) {
-                DebugLog.debug("Found directly linked SkinsRestorer skin: " + name);
-                return linkedSkin;
-            }
-
-            if (!onlineMode) {
-                DebugLog.debug("No linked SkinsRestorer skin found for offline player: " + name);
-                return null;
-            }
-
-            Optional<?> joinResult = invokeOptional(storage, "getSkinForPlayer",
-                    new Class<?>[] { UUID.class, String.class, boolean.class },
-                    new Object[] { uuid, name, true });
-            SkinData joinSkin = toSkinData(joinResult);
-            if (joinSkin != null) {
-                DebugLog.debug("Found SkinsRestorer join skin: " + name);
-                return joinSkin;
-            }
-
-            Optional<?> legacyResult = invokeOptional(storage, "getSkinForPlayer",
+            Optional<?> result = invokeOptional(storage, "getSkinForPlayer",
                     new Class<?>[] { UUID.class, String.class }, new Object[] { uuid, name });
-            SkinData legacySkin = toSkinData(legacyResult);
-            if (legacySkin != null) {
-                DebugLog.debug("Found SkinsRestorer legacy skin: " + name);
-                return legacySkin;
+            SkinData skin = toSkinData(result);
+            if (skin != null) {
+                DebugLog.debug("Found SkinsRestorer player skin: " + name);
             }
-
-            Object skinStorage = api.getClass().getMethod("getSkinStorage").invoke(api);
-            Optional<?> playerSkinResult = invokeOptional(skinStorage, "getPlayerSkin",
-                    new Class<?>[] { String.class, boolean.class }, new Object[] { name, false });
-            SkinData playerSkin = toMojangSkinData(playerSkinResult);
-            if (playerSkin != null) {
-                DebugLog.debug("Found SkinsRestorer cached player skin: " + name);
-            }
-            return playerSkin;
-        } catch (ReflectiveOperationException | RuntimeException exception) {
+            return skin;
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError exception) {
             DebugLog.debug("SkinsRestorer lookup failed for " + name + ": "
                     + exception.getClass().getSimpleName()
                     + (exception.getMessage() == null ? "" : " - " + exception.getMessage()));
@@ -569,104 +733,6 @@ public final class SkinHeadUtil {
         String value = (String) property.getClass().getMethod("getValue").invoke(property);
         String signature = (String) property.getClass().getMethod("getSignature").invoke(property);
         return value == null || value.isBlank() ? null : new SkinData(value, signature);
-    }
-
-    private static SkinData toMojangSkinData(Optional<?> result) throws ReflectiveOperationException {
-        if (result.isEmpty()) {
-            return null;
-        }
-        Object skinResult = result.get();
-        if (skinResult == null) {
-            return null;
-        }
-        Object property = skinResult.getClass().getMethod("getSkinProperty").invoke(skinResult);
-        if (property == null) {
-            return null;
-        }
-        String value = (String) property.getClass().getMethod("getValue").invoke(property);
-        String signature = (String) property.getClass().getMethod("getSignature").invoke(property);
-        return value == null || value.isBlank() ? null : new SkinData(value, signature);
-    }
-
-    private static SkinData loadFromMojangByUuid(UUID uuid) {
-        if (uuid == null) {
-            return null;
-        }
-        HttpResponse<String> response = sendMojangRequest(
-                MOJANG_SESSION_URL + uuid.toString().replace("-", "") + "?unsigned=false");
-        if (response == null || response.statusCode() != 200) {
-            return null;
-        }
-        try {
-            return extractTextures(JsonParser.parseString(response.body()).getAsJsonObject());
-        } catch (RuntimeException exception) {
-            return null;
-        }
-    }
-
-    private static HttpResponse<String> sendMojangRequest(String url) {
-        synchronized (MOJANG_REQUEST_LOCK) {
-            long now = System.currentTimeMillis();
-            if (now < mojangCooldownUntil) {
-                return null;
-            }
-            long wait = 1000L - (now - lastMojangRequestAt);
-            if (wait > 0L) {
-                try {
-                    Thread.sleep(wait);
-                } catch (InterruptedException exception) {
-                    Thread.currentThread().interrupt();
-                    return null;
-                }
-            }
-            lastMojangRequestAt = System.currentTimeMillis();
-        }
-        try {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .timeout(HTTP_TIMEOUT)
-                    .header("Accept", "application/json")
-                    .GET()
-                    .build();
-            HttpResponse<String> response = HTTP_CLIENT.send(
-                    request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 429 || response.statusCode() >= 500) {
-                mojangCooldownUntil = System.currentTimeMillis() +
-                        (response.statusCode() == 429 ? RATE_LIMIT_TTL_MILLIS : FAILURE_TTL_MILLIS);
-            }
-            return response;
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            return null;
-        } catch (IOException | RuntimeException exception) {
-            mojangCooldownUntil = System.currentTimeMillis() + FAILURE_TTL_MILLIS;
-            return null;
-        }
-    }
-
-    private static SkinData extractTextures(JsonObject profile) {
-        JsonArray properties = profile.getAsJsonArray("properties");
-        if (properties == null) {
-            return null;
-        }
-        for (JsonElement element : properties) {
-            JsonObject property = element.getAsJsonObject();
-            if (!"textures".equals(property.get("name").getAsString())) {
-                continue;
-            }
-            String value = property.get("value").getAsString();
-            String signature = property.has("signature") ? property.get("signature").getAsString() : null;
-            if (value.isBlank()) {
-                return null;
-            }
-            try {
-                Base64.getDecoder().decode(value);
-            } catch (IllegalArgumentException exception) {
-                return null;
-            }
-            return new SkinData(value, signature);
-        }
-        return null;
     }
 
     private static void applySkin(PlayerProfile profile, SkinData data) {

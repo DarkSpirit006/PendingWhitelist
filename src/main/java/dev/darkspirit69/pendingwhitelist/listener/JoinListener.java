@@ -4,6 +4,7 @@ import dev.darkspirit69.pendingwhitelist.PendingWhitelistPlugin;
 import dev.darkspirit69.pendingwhitelist.logging.DebugLog;
 import dev.darkspirit69.pendingwhitelist.storage.PendingRepository;
 import dev.darkspirit69.pendingwhitelist.util.FloodgateUtil;
+import dev.darkspirit69.pendingwhitelist.util.SkinHeadUtil;
 import dev.darkspirit69.pendingwhitelist.update.UpdateNotifier;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -78,5 +79,8 @@ public final class JoinListener implements Listener {
     public void onPlayerJoin(PlayerJoinEvent event) {
         DebugLog.debug("PlayerJoinEvent received for " + event.getPlayer().getName());
         updateNotifier.notifyIfUpdateAvailable(event.getPlayer());
+
+        plugin.getServer().getScheduler().runTaskLater(plugin,
+                () -> SkinHeadUtil.refreshPlayerSkin(event.getPlayer()), 40L);
     }
 }

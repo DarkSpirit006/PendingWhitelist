@@ -8,6 +8,7 @@ import dev.darkspirit69.pendingwhitelist.logging.DebugLog;
 import dev.darkspirit69.pendingwhitelist.storage.PendingRepository;
 import dev.darkspirit69.pendingwhitelist.storage.PendingStorage;
 import dev.darkspirit69.pendingwhitelist.update.UpdateNotifier;
+import dev.darkspirit69.pendingwhitelist.util.FloodgateUtil;
 import dev.darkspirit69.pendingwhitelist.util.SkinHeadUtil;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandMap;
@@ -33,6 +34,7 @@ public final class PendingWhitelistPlugin extends JavaPlugin {
     private WlCommand wlCommand;
     private UpdateNotifier updateNotifier;
     private Command registeredCommand;
+    private Command registeredBedrockCommand;
     private Metrics metrics;
     private final Map<UUID, WlGui> guiViewers = new HashMap<>();
 
@@ -59,18 +61,20 @@ public final class PendingWhitelistPlugin extends JavaPlugin {
         pendingStorage.loadFromDisk();
         getServer().getPluginManager().registerEvents(new JoinListener(this, pendingStorage, updateNotifier), this);
         getServer().getPluginManager().registerEvents(new WlGuiListener(this, pendingStorage), this);
-        DebugLog.debug("Registering /wl command");
-        registerCommand();
+        DebugLog.debug("Registering /wl commands");
+        registerCommands();
 
         pendingStorage.schedulePurgeCheck();
         DebugLog.info("PendingWhitelist enabled successfully");
     }
 
     /**
-     * Registers /wl directly with Paper's command map.
+     * Registers /wl and /wlb directly with Paper's command map.
      * Paper plugins do not read the legacy plugin.yml "commands" section.
      */
-    private void registerCommand() {
+    private void registerCommands() {
+        CommandMap commandMap = getCommandMap();
+
         Command command = new Command("wl") {
             @Override
             public boolean execute(CommandSender sender, String commandLabel, String[] args) {
@@ -85,12 +89,36 @@ public final class PendingWhitelistPlugin extends JavaPlugin {
         command.setDescription("Manage pending whitelist entries and open the admin GUI.");
         command.setUsage("/wl <pl|list|add|remove|rpl|on|off|reload|version>");
         command.setPermission("pendingwhitelist.admin");
-
-        CommandMap commandMap = getCommandMap();
         if (!commandMap.register("pendingwhitelist", command)) {
             throw new IllegalStateException("Unable to register the /wl command.");
         }
         registeredCommand = command;
+
+        if (FloodgateUtil.isAvailable()) {
+            Command bedrockCommand = new Command("wlb") {
+                @Override
+                public boolean execute(CommandSender sender, String commandLabel, String[] args) {
+                    return wlCommand.onBedrockCommand(sender, this, commandLabel, args);
+                }
+
+                @Override
+                public List<String> tabComplete(CommandSender sender, String alias, String[] args) {
+                    return wlCommand.onTabComplete(sender, this, alias, args);
+                }
+            };
+            bedrockCommand.setDescription("Add Bedrock players to the whitelist through Floodgate.");
+            bedrockCommand.setUsage("/wlb add <username> [username ...]");
+            bedrockCommand.setPermission("pendingwhitelist.admin");
+            if (!commandMap.register("pendingwhitelist", bedrockCommand)) {
+                command.unregister(commandMap);
+                registeredCommand = null;
+                throw new IllegalStateException("Unable to register the /wlb command.");
+            }
+            registeredBedrockCommand = bedrockCommand;
+            DebugLog.debug("Registered /wlb because Floodgate is available");
+        } else {
+            DebugLog.debug("Floodgate is unavailable; /wlb will not be registered");
+        }
     }
 
     private CommandMap getCommandMap() {
@@ -106,12 +134,13 @@ public final class PendingWhitelistPlugin extends JavaPlugin {
     public void onDisable() {
         DebugLog.info("Disabling PendingWhitelist");
         closeOpenGuis();
-        unregisterCommand();
+        unregisterCommands();
         if (pendingStorage != null) {
             pendingStorage.shutdown();
         }
         shutdownMetrics();
         SkinHeadUtil.shutdown();
+        FloodgateUtil.reset();
         DebugLog.info("PendingWhitelist disabled");
     }
 
@@ -174,17 +203,35 @@ public final class PendingWhitelistPlugin extends JavaPlugin {
         }
     }
 
-    private void unregisterCommand() {
-        if (registeredCommand == null) {
+    private void unregisterCommands() {
+        CommandMap commandMap;
+        try {
+            commandMap = getCommandMap();
+        } catch (RuntimeException ex) {
+            DebugLog.error("Could not access the command map during shutdown.", ex);
             return;
         }
-        try {
-            registeredCommand.unregister(getCommandMap());
-            DebugLog.debug("Unregistered /wl command");
-        } catch (RuntimeException ex) {
-            DebugLog.error("Could not unregister /wl during shutdown.", ex);
-        } finally {
-            registeredCommand = null;
+
+        if (registeredBedrockCommand != null) {
+            try {
+                registeredBedrockCommand.unregister(commandMap);
+                DebugLog.debug("Unregistered /wlb command");
+            } catch (RuntimeException ex) {
+                DebugLog.error("Could not unregister /wlb during shutdown.", ex);
+            } finally {
+                registeredBedrockCommand = null;
+            }
+        }
+
+        if (registeredCommand != null) {
+            try {
+                registeredCommand.unregister(commandMap);
+                DebugLog.debug("Unregistered /wl command");
+            } catch (RuntimeException ex) {
+                DebugLog.error("Could not unregister /wl during shutdown.", ex);
+            } finally {
+                registeredCommand = null;
+            }
         }
     }
 

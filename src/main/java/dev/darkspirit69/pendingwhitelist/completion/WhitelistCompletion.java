@@ -1,12 +1,13 @@
 package dev.darkspirit69.pendingwhitelist.completion;
 
-import dev.darkspirit69.pendingwhitelist.storage.PendingRepository;
 import dev.darkspirit69.pendingwhitelist.logging.DebugLog;
+import dev.darkspirit69.pendingwhitelist.storage.PendingRepository;
+import dev.darkspirit69.pendingwhitelist.util.FloodgateUtil;
+import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
-import org.bukkit.Bukkit;
-import org.bukkit.OfflinePlayer;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -14,6 +15,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.UUID;
 
 /** Provides context-aware completion for the /wl command. */
 public class WhitelistCompletion implements TabCompleter {
@@ -34,6 +36,8 @@ public class WhitelistCompletion implements TabCompleter {
     private final PendingRepository pendingStorage;
     private List<String> cachedAddSuggestions = List.of();
     private long cachedAddSuggestionsAt;
+    private List<String> cachedBedrockSuggestions = List.of();
+    private long cachedBedrockSuggestionsAt;
 
     public WhitelistCompletion(PendingRepository pendingStorage) {
         this.pendingStorage = pendingStorage;
@@ -44,6 +48,10 @@ public class WhitelistCompletion implements TabCompleter {
         DebugLog.debug("WhitelistCompletion invoked for " + sender.getName());
         if (!sender.hasPermission("pendingwhitelist.admin")) {
             return Collections.emptyList();
+        }
+
+        if ("wlb".equalsIgnoreCase(alias)) {
+            return FloodgateUtil.isAvailable() ? completeBedrock(args) : Collections.emptyList();
         }
 
         if (args.length == 0) {
@@ -80,6 +88,91 @@ public class WhitelistCompletion implements TabCompleter {
         }
 
         return filterByPrefix(availableSuggestions, args[args.length - 1]);
+    }
+
+    private List<String> completeBedrock(String[] args) {
+        if (args.length == 0) {
+            return List.of("add");
+        }
+
+        if (args.length == 1) {
+            return filterByPrefix(List.of("add"), args[0]);
+        }
+
+        if (!"add".equalsIgnoreCase(args[0])) {
+            return Collections.emptyList();
+        }
+
+        List<String> suggestions = new ArrayList<>(getBedrockSuggestions());
+        Set<String> entered = new HashSet<>();
+        for (int index = 1; index < args.length - 1; index++) {
+            entered.add(args[index].toLowerCase(Locale.ROOT));
+        }
+        suggestions.removeIf(value -> entered.contains(value.toLowerCase(Locale.ROOT)));
+        return filterByPrefix(suggestions, args[args.length - 1]);
+    }
+
+    private List<String> getBedrockSuggestions() {
+        long now = System.currentTimeMillis();
+        if (now - cachedBedrockSuggestionsAt < ADD_SUGGESTIONS_CACHE_MILLIS) {
+            return cachedBedrockSuggestions;
+        }
+
+        Set<String> whitelisted = new HashSet<>();
+        for (String name : pendingStorage.getWhitelistedUsernames()) {
+            whitelisted.add(name.toLowerCase(Locale.ROOT));
+        }
+
+        Set<String> seen = new HashSet<>();
+        List<String> suggestions = new ArrayList<>();
+        for (var entry : pendingStorage.getPendingEntriesSortedByRecencyDesc()) {
+            if (!pendingStorage.isFloodgateUuid(entry.uuid())) {
+                continue;
+            }
+            String name = entry.name();
+            if (name == null || name.isBlank()) {
+                name = pendingStorage.resolveDisplayName(parseUuid(entry.uuid()));
+            }
+            addBedrockSuggestion(suggestions, seen, whitelisted, name);
+        }
+
+        for (OfflinePlayer player : Bukkit.getOfflinePlayers()) {
+            if (player.isOnline() || !player.hasPlayedBefore()) {
+                continue;
+            }
+            if (!pendingStorage.isFloodgateUuid(player.getUniqueId().toString())) {
+                continue;
+            }
+            String name = pendingStorage.resolveDisplayName(player.getUniqueId());
+            addBedrockSuggestion(suggestions, seen, whitelisted, name);
+        }
+
+        suggestions.sort(String.CASE_INSENSITIVE_ORDER);
+        cachedBedrockSuggestions = List.copyOf(suggestions);
+        cachedBedrockSuggestionsAt = now;
+        return cachedBedrockSuggestions;
+    }
+
+    private void addBedrockSuggestion(List<String> suggestions, Set<String> seen, Set<String> whitelisted,
+            String name) {
+        if (name == null || name.isBlank()) {
+            return;
+        }
+        String normalized = name.toLowerCase(Locale.ROOT);
+        if (!whitelisted.contains(normalized) && seen.add(normalized)) {
+            suggestions.add(name);
+        }
+    }
+
+    private UUID parseUuid(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
     }
 
     private List<String> getRemovalSuggestions(String subcommand) {
@@ -152,6 +245,9 @@ public class WhitelistCompletion implements TabCompleter {
             if (name == null || name.isBlank()) {
                 name = entry.displayName();
             }
+            if ((name == null || name.isBlank()) && entry.uuid() != null) {
+                name = pendingStorage.resolveDisplayName(parseUuid(entry.uuid()));
+            }
             if (!isAvailable(name, whitelisted, seen)) {
                 continue;
             }
@@ -169,7 +265,7 @@ public class WhitelistCompletion implements TabCompleter {
             List<String> bedrock,
             List<String> java) {
         for (var player : Bukkit.getOnlinePlayers()) {
-            String name = player.getName();
+            String name = pendingStorage.resolveDisplayName(player.getUniqueId());
             if (!isAvailable(name, whitelisted, seen) || pendingStorage.isPending(name)) {
                 continue;
             }
@@ -190,7 +286,7 @@ public class WhitelistCompletion implements TabCompleter {
             if (player.isOnline() || !player.hasPlayedBefore()) {
                 continue;
             }
-            String name = player.getName();
+            String name = pendingStorage.resolveDisplayName(player.getUniqueId());
             if (!isAvailable(name, whitelisted, seen)) {
                 continue;
             }

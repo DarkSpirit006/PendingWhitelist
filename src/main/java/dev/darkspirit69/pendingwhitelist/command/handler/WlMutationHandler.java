@@ -4,11 +4,10 @@ import dev.darkspirit69.pendingwhitelist.logging.DebugLog;
 import dev.darkspirit69.pendingwhitelist.command.WlCommandContext;
 import dev.darkspirit69.pendingwhitelist.gui.WlGui;
 import dev.darkspirit69.pendingwhitelist.model.PendingEntry;
+import dev.darkspirit69.pendingwhitelist.util.FloodgateUtil;
 import dev.darkspirit69.pendingwhitelist.util.SoundUtil;
 import dev.darkspirit69.pendingwhitelist.util.TextUtil;
 import dev.darkspirit69.pendingwhitelist.text.MessageStyle;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -27,13 +26,27 @@ public final class WlMutationHandler {
     }
 
     public boolean add(CommandSender sender, String[] args) {
-        DebugLog.debug("Whitelist add requested by " + sender.getName());
+        return add(sender, args, false);
+    }
+
+    public boolean addBedrock(CommandSender sender, String[] args) {
+        return add(sender, args, true);
+    }
+
+    private boolean add(CommandSender sender, String[] args, boolean bedrockOnly) {
+        DebugLog.debug((bedrockOnly ? "Bedrock whitelist add" : "Whitelist add")
+                + " requested by " + sender.getName());
         if (args.length < 2) {
-            if (sender instanceof Player) {
+            if (!bedrockOnly && sender instanceof Player) {
                 context.openGui(sender, WlGui.View.ADD);
                 return true;
             }
-            TextUtil.send(sender, MessageStyle.ERROR_LEGACY + "Usage: /wl add <username> [username ...]");
+            TextUtil.send(sender, MessageStyle.ERROR_LEGACY + "Usage: "
+                    + (bedrockOnly ? "/wlb add <username> [username ...]" : "/wl add <username> [username ...]"));
+            return true;
+        }
+        if (bedrockOnly && !FloodgateUtil.isAvailable()) {
+            TextUtil.send(sender, MessageStyle.ERROR_LEGACY + "Floodgate is not available.");
             return true;
         }
 
@@ -41,31 +54,39 @@ public final class WlMutationHandler {
         for (int i = 1; i < args.length; i++) {
             String username = args[i];
             PendingEntry pendingEntry = context.repository().findPendingEntry(username);
-            CompletableFuture<AddResult> operation = context.repository().addToWhitelistAsync(username)
+            CompletableFuture<Boolean> addFuture;
+            if (bedrockOnly && pendingEntry != null && pendingEntry.uuid() != null
+                    && !pendingEntry.uuid().isBlank()) {
+                addFuture = context.repository().addFloodgatePlayerToWhitelistAsync(pendingEntry.uuid());
+            } else {
+                addFuture = bedrockOnly
+                        ? context.repository().addFloodgatePlayerToWhitelistAsync(username)
+                        : context.repository().addToWhitelistAsync(username);
+            }
+            CompletableFuture<AddResult> operation = addFuture
                     .handle((added, error) -> new AddResult(username, pendingEntry, Boolean.TRUE.equals(added), error));
             operations.add(operation);
         }
 
-        if (operations.stream().anyMatch(operation -> !operation.isDone())) {
-            TextUtil.send(sender, MessageStyle.SECONDARY_LEGACY + "Resolving player profiles...");
-        }
-
-        CompletableFuture.allOf(operations.toArray(CompletableFuture[]::new)).thenRun(() ->
-                context.plugin().getServer().getScheduler().runTask(context.plugin(), () -> {
-                    DebugLog.debug("Whitelist add operation completed for " + operations.size() + " identifier(s)");
-                    finishAdd(sender, operations);
+        CompletableFuture.allOf(operations.toArray(CompletableFuture[]::new))
+                .thenRun(() -> context.plugin().getServer().getScheduler().runTask(context.plugin(), () -> {
+                    DebugLog.debug((bedrockOnly ? "Bedrock whitelist" : "Whitelist")
+                            + " add operation completed for " + operations.size() + " identifier(s)");
+                    finishAdd(sender, operations, bedrockOnly);
                 }));
         return true;
     }
 
-    private void finishAdd(CommandSender sender, List<CompletableFuture<AddResult>> operations) {
+    private void finishAdd(CommandSender sender, List<CompletableFuture<AddResult>> operations, boolean bedrockOnly) {
         List<String> added = new ArrayList<>();
         List<String> alreadyWhitelisted = new ArrayList<>();
+        List<String> failed = new ArrayList<>();
 
         for (CompletableFuture<AddResult> operation : operations) {
             AddResult result = operation.join();
             if (result.error() != null) {
                 DebugLog.error("Whitelist add failed for " + result.identifier() + ".", result.error());
+                failed.add(result.identifier());
                 continue;
             }
             if (result.added()) {
@@ -79,25 +100,32 @@ public final class WlMutationHandler {
                 }
             } else if (context.repository().isWhitelisted(result.identifier())) {
                 alreadyWhitelisted.add(result.identifier());
+            } else {
+                failed.add(result.identifier());
             }
         }
 
         sendAddedMessages(sender, added);
-        sendResultGroup(sender, "Already whitelisted:", alreadyWhitelisted, MessageStyle.WARNING, "",
-                "already whitelisted");
-        playResultSound(sender, added, alreadyWhitelisted);
-    }
-
-    private record AddResult(String identifier, PendingEntry pendingEntry, boolean added, Throwable error) {
+        sendResultGroup(sender, "Already whitelisted", alreadyWhitelisted, MessageStyle.WARNING, "");
+        sendResultGroup(sender, "Could not add", failed, MessageStyle.ERROR, "to the whitelist");
+        if (bedrockOnly && !failed.isEmpty()) {
+            TextUtil.send(sender, MessageStyle.SECONDARY_LEGACY
+                    + "Bedrock players can only be resolved by name if they've joined a Geyser "
+                    + "server before, or if the lookup service is available. Have them join once, "
+                    + "or use their Floodgate UUID with /wlb add instead.");
+        }
+        playResultSound(sender, added, failed);
     }
 
     private void sendAddedMessages(CommandSender sender, List<String> identifiers) {
         for (String identifier : identifiers) {
             String displayName = context.repository().resolveDisplayNameForIdentifier(identifier);
             String name = displayName == null || displayName.isBlank() ? identifier : displayName;
-            TextUtil.send(sender, MessageStyle.SUCCESS_LEGACY + "Added " + MessageStyle.VALUE_LEGACY
-                    + name + " " + MessageStyle.SECONDARY_LEGACY + "to the whitelist.");
+            TextUtil.sendResult(sender, "Added", name, MessageStyle.SUCCESS, "to the whitelist");
         }
+    }
+
+    private record AddResult(String identifier, PendingEntry pendingEntry, boolean added, Throwable error) {
     }
 
     public boolean remove(CommandSender sender, String[] args) {
@@ -118,9 +146,8 @@ public final class WlMutationHandler {
             }
         }
 
-        sendResultGroup(sender, "Removed", removed, MessageStyle.SUCCESS, "from the whitelist", "removed");
-        sendResultGroup(sender, "Could not remove", notFound, MessageStyle.ERROR, "from the whitelist",
-                "not whitelisted");
+        sendResultGroup(sender, "Removed", removed, MessageStyle.SUCCESS, "from the whitelist");
+        sendResultGroup(sender, "Could not remove", notFound, MessageStyle.ERROR, "from the whitelist");
         playResultSound(sender, removed, notFound);
         return true;
     }
@@ -143,9 +170,9 @@ public final class WlMutationHandler {
             }
         }
 
-        sendResultGroup(sender, "Removed", removed, MessageStyle.SUCCESS, "from pending players", "removed");
+        sendResultGroup(sender, "Removed", removed, MessageStyle.SUCCESS, "from pending players");
         sendResultGroup(sender, "Could not remove", notFound, MessageStyle.ERROR,
-                "from pending players", "not found");
+                "from pending players");
         playResultSound(sender, removed, notFound);
         return true;
     }
@@ -157,8 +184,7 @@ public final class WlMutationHandler {
             return true;
         }
 
-        boolean currentlyEnabled = context.plugin().getServer().hasWhitelist();
-        if (currentlyEnabled == enabled) {
+        if (!context.repository().setWhitelistEnabled(enabled)) {
             TextUtil.send(sender, MessageStyle.WARNING_LEGACY
                     + (enabled ? "Whitelist is already enabled." : "Whitelist is already disabled."));
             if (sender instanceof Player player) {
@@ -167,7 +193,6 @@ public final class WlMutationHandler {
             return true;
         }
 
-        context.plugin().getServer().setWhitelist(enabled);
         TextUtil.send(sender, (enabled ? MessageStyle.SUCCESS_LEGACY : MessageStyle.WARNING_LEGACY)
                 + (enabled ? "Whitelist enabled." : "Whitelist disabled."));
         if (sender instanceof Player player) {
@@ -193,61 +218,21 @@ public final class WlMutationHandler {
     }
 
     private void sendResultGroup(CommandSender sender, String action, List<String> identifiers,
-            NamedTextColor actionColor, String suffix, String status) {
+            NamedTextColor actionColor, String suffix) {
         if (identifiers.isEmpty()) {
             return;
         }
 
         for (String identifier : identifiers) {
-            sendPlayerLine(sender, action, identifier, actionColor, suffix, status);
+            sendPlayerLine(sender, action, identifier, actionColor, suffix);
         }
     }
 
     private void sendPlayerLine(CommandSender sender, String action, String identifier, NamedTextColor actionColor,
-            String suffix, String status) {
+            String suffix) {
         String displayName = context.repository().resolveDisplayNameForIdentifier(identifier);
         String resolvedName = displayName == null || displayName.isBlank() ? identifier : displayName;
-        PendingEntry entry = context.repository().findPendingEntry(identifier);
-        String uuid = entry == null || entry.uuid() == null || entry.uuid().isBlank() ? "unknown" : entry.uuid();
-        String attempts = entry == null ? "0" : String.valueOf(entry.attempts());
-        String messageSuffix = suffix.isBlank() ? "." : " " + suffix + ".";
-
-        if (sender instanceof Player player) {
-            Component hover = Component.text()
-                    .append(Component.text("Player: ", MessageStyle.SECONDARY))
-                    .append(Component.text(resolvedName, MessageStyle.VALUE))
-                    .append(Component.newline())
-                    .append(Component.text("UUID: ", MessageStyle.SECONDARY))
-                    .append(Component.text(uuid, MessageStyle.VALUE))
-                    .append(Component.newline())
-                    .append(Component.text("Status: ", MessageStyle.SECONDARY))
-                    .append(Component.text(status, MessageStyle.VALUE))
-                    .append(Component.newline())
-                    .append(Component.text("Attempts: ", MessageStyle.SECONDARY))
-                    .append(Component.text(attempts, MessageStyle.VALUE))
-                    .build();
-            player.sendMessage(Component.text(action + " ", actionColor)
-                    .append(Component.text(resolvedName, MessageStyle.VALUE))
-                    .append(Component.text(messageSuffix, actionColor))
-                    .hoverEvent(HoverEvent.showText(hover)));
-        } else {
-            String legacyColor = legacyColor(actionColor);
-            TextUtil.send(sender, legacyColor + action + " " + MessageStyle.VALUE_LEGACY
-                    + resolvedName + MessageStyle.SECONDARY_LEGACY + messageSuffix);
-        }
-    }
-
-    private String legacyColor(NamedTextColor color) {
-        if (color == MessageStyle.SUCCESS) {
-            return MessageStyle.SUCCESS_LEGACY;
-        }
-        if (color == MessageStyle.WARNING) {
-            return MessageStyle.WARNING_LEGACY;
-        }
-        if (color == MessageStyle.ERROR) {
-            return MessageStyle.ERROR_LEGACY;
-        }
-        return MessageStyle.SECONDARY_LEGACY;
+        TextUtil.sendResult(sender, action, resolvedName, actionColor, suffix);
     }
 
     private void playResultSound(CommandSender sender, List<String> success, List<String> failure) {

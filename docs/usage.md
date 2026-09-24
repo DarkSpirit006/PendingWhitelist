@@ -9,6 +9,7 @@ PendingWhitelist is managed through `/wl`. The main command opens the admin dash
 | `/wl` | Open the admin dashboard. |
 | `/wl add` | Open the Add Players GUI. |
 | `/wl add <player>` | Add a player to the whitelist. |
+| `/wlb add <player>` | Add a Bedrock player to the whitelist through Floodgate (available only when Floodgate is installed). |
 | `/wl list [page]` | List currently whitelisted players in chat. |
 | `/wl remove` | Open the Whitelisted Players GUI. |
 | `/wl remove <player...>` | Remove players from the whitelist. |
@@ -20,7 +21,9 @@ PendingWhitelist is managed through `/wl`. The main command opens the admin dash
 | `/wl reload` | Reload the plugin configuration and runtime state. |
 | `/wl version` | Check the latest stable Modrinth release. |
 
-All `/wl` administration commands require `pendingwhitelist.admin`.
+Use `/wl add` for pending or known players. `/wlb add` is registered only when Floodgate is installed and adds a non-whitelisted Bedrock player using a pending entry, a known offline Floodgate player, an unknown Bedrock gamertag resolved through the Geyser Global API, or a Floodgate UUID.
+
+All whitelist administration commands require `pendingwhitelist.admin`.
 
 ## Add Players GUI
 

@@ -1,27 +1,18 @@
 package dev.darkspirit69.pendingwhitelist.gui;
 
 import dev.darkspirit69.pendingwhitelist.logging.DebugLog;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import dev.darkspirit69.pendingwhitelist.PendingWhitelistPlugin;
 import dev.darkspirit69.pendingwhitelist.model.PendingEntry;
 import dev.darkspirit69.pendingwhitelist.storage.PendingRepository;
 import dev.darkspirit69.pendingwhitelist.util.FloodgateUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -30,7 +21,6 @@ final class WlGuiData {
 
     private static final int PLAYER_SLOTS = 36;
 
-    private final PendingWhitelistPlugin plugin;
     private final PendingRepository repository;
     private List<WlGui.AddCandidate> addCandidatesCache;
     private List<WlGui.AddCandidate> addLayoutCache;
@@ -38,8 +28,7 @@ final class WlGuiData {
     private List<WlGui.WhitelistEntry> whitelistEntriesCache;
     private List<WlGui.WhitelistEntry> whitelistLayoutCache;
 
-    WlGuiData(PendingWhitelistPlugin plugin, PendingRepository repository) {
-        this.plugin = plugin;
+    WlGuiData(PendingRepository repository) {
         this.repository = repository;
     }
 
@@ -56,26 +45,15 @@ final class WlGuiData {
             return whitelistEntriesCache;
         }
         DebugLog.debug("Preparing whitelist GUI entries");
-        Map<UUID, String> storedNames = readStoredWhitelistNames();
         List<WlGui.WhitelistEntry> entries = new ArrayList<>();
         for (OfflinePlayer player : Bukkit.getWhitelistedPlayers()) {
-            String name = normalizeDisplayName(player.getName());
+            UUID uuid = player.getUniqueId();
+            String name = normalizeDisplayName(repository.resolveDisplayName(uuid));
             if (name == null) {
-                name = repository.getKnownWhitelistName(player.getUniqueId());
+                name = uuid.toString();
             }
-            if (name == null) {
-                name = storedNames.get(player.getUniqueId());
-            }
-            if (name == null) {
-                name = player.getUniqueId().toString();
-            }
-            if (name.length() <= 64 && !name.equals(player.getUniqueId().toString())) {
-                UUID uuid = player.getUniqueId();
+            if (!name.equals(uuid.toString())) {
                 repository.rememberWhitelistName(uuid, name);
-                String storedName = storedNames.get(uuid);
-                if (!name.equals(storedName)) {
-                    repository.repairWhitelistJsonName(uuid, name);
-                }
             }
             entries.add(new WlGui.WhitelistEntry(player, name));
         }
@@ -249,9 +227,10 @@ final class WlGuiData {
 
     private void collectWhitelistedPlayers(Set<UUID> whitelistedUuids, Set<String> whitelistedNames) {
         for (OfflinePlayer player : Bukkit.getWhitelistedPlayers()) {
-            whitelistedUuids.add(player.getUniqueId());
-            String name = player.getName();
-            if (name != null && !name.isBlank()) {
+            UUID uuid = player.getUniqueId();
+            whitelistedUuids.add(uuid);
+            String name = normalizeDisplayName(repository.resolveDisplayName(uuid));
+            if (name != null) {
                 whitelistedNames.add(name.toLowerCase(Locale.ROOT));
             }
         }
@@ -280,9 +259,16 @@ final class WlGuiData {
     }
 
     private String pendingName(PendingEntry entry) {
-        String name = entry.name();
-        if (name == null || name.isBlank()) {
-            name = entry.displayName();
+        String name = normalizeDisplayName(entry.name());
+        UUID uuid = parseUuid(entry.uuid());
+        if (name == null && uuid != null) {
+            name = normalizeDisplayName(repository.resolveDisplayName(uuid));
+        }
+        if (name == null) {
+            name = normalizeDisplayName(entry.displayName());
+        }
+        if (uuid != null && isBedrock(uuid)) {
+            name = FloodgateUtil.stripPrefix(name);
         }
         return name;
     }
@@ -293,7 +279,7 @@ final class WlGuiData {
     }
 
     private boolean isBedrock(UUID uuid) {
-        return uuid != null && FloodgateUtil.isFloodgateId(uuid);
+        return uuid != null && FloodgateUtil.isAvailable() && FloodgateUtil.isFloodgateId(uuid);
     }
 
     private void addCandidateToGroup(WlGui.AddCandidate candidate, List<WlGui.AddCandidate> bedrock,
@@ -308,11 +294,13 @@ final class WlGuiData {
     private void collectOnlineCandidates(List<WlGui.AddCandidate> onlineBedrock, List<WlGui.AddCandidate> onlineJava,
             Set<UUID> seen, Set<UUID> whitelistedUuids, Set<String> whitelistedNames) {
         for (OfflinePlayer player : Bukkit.getOnlinePlayers()) {
-            if (!isOtherCandidate(player, seen, whitelistedUuids, whitelistedNames)) {
+            UUID uuid = player.getUniqueId();
+            String name = normalizeDisplayName(repository.resolveDisplayName(uuid));
+            if (!isOtherCandidate(uuid, name, seen, whitelistedUuids, whitelistedNames)) {
                 continue;
             }
-            WlGui.AddCandidate candidate = new WlGui.AddCandidate(player, player.getName(), false,
-                    FloodgateUtil.isFloodgateId(player.getUniqueId()), true);
+            WlGui.AddCandidate candidate = new WlGui.AddCandidate(player, name, false,
+                    isBedrock(uuid), true);
             addCandidateToGroup(candidate, onlineBedrock, onlineJava);
         }
     }
@@ -321,22 +309,23 @@ final class WlGuiData {
             List<WlGui.AddCandidate> offlineJava, Set<UUID> seen, Set<UUID> whitelistedUuids,
             Set<String> whitelistedNames) {
         for (OfflinePlayer player : Bukkit.getOfflinePlayers()) {
-            if (player.isOnline() || !player.hasPlayedBefore()
-                    || !isOtherCandidate(player, seen, whitelistedUuids, whitelistedNames)) {
+            if (player.isOnline() || !player.hasPlayedBefore()) {
                 continue;
             }
-            WlGui.AddCandidate candidate = new WlGui.AddCandidate(player, player.getName(), false,
-                    FloodgateUtil.isFloodgateId(player.getUniqueId()), false);
+            UUID uuid = player.getUniqueId();
+            String name = normalizeDisplayName(repository.resolveDisplayName(uuid));
+            if (!isOtherCandidate(uuid, name, seen, whitelistedUuids, whitelistedNames)) {
+                continue;
+            }
+            WlGui.AddCandidate candidate = new WlGui.AddCandidate(player, name, false,
+                    isBedrock(uuid), false);
             addCandidateToGroup(candidate, offlineBedrock, offlineJava);
         }
     }
 
-    private boolean isOtherCandidate(OfflinePlayer player, Set<UUID> seen,
+    private boolean isOtherCandidate(UUID uuid, String name, Set<UUID> seen,
             Set<UUID> whitelistedUuids, Set<String> whitelistedNames) {
-        UUID uuid = player.getUniqueId();
-        String name = player.getName();
-        return name != null && !name.isBlank()
-                && !whitelistedUuids.contains(uuid)
+        return name != null && !whitelistedUuids.contains(uuid)
                 && !whitelistedNames.contains(name.toLowerCase(Locale.ROOT))
                 && seen.add(uuid);
     }
@@ -475,37 +464,6 @@ final class WlGuiData {
         return normalized.isEmpty() ? null : normalized;
     }
 
-    private Map<UUID, String> readStoredWhitelistNames() {
-        Map<UUID, String> names = new LinkedHashMap<>();
-        Path file = plugin.getServer().getWorldContainer().toPath().resolve("whitelist.json");
-        if (!Files.isRegularFile(file)) {
-            return names;
-        }
-        try (var reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
-            var root = JsonParser.parseReader(reader);
-            if (!root.isJsonArray()) {
-                return names;
-            }
-            for (var element : root.getAsJsonArray()) {
-                if (!element.isJsonObject()) {
-                    continue;
-                }
-                JsonObject object = element.getAsJsonObject();
-                if (!object.has("uuid") || !object.has("name")
-                        || !object.get("uuid").isJsonPrimitive() || !object.get("name").isJsonPrimitive()) {
-                    continue;
-                }
-                UUID uuid = parseUuid(object.get("uuid").getAsString());
-                String name = normalizeDisplayName(object.get("name").getAsString());
-                if (uuid != null && name != null) {
-                    names.put(uuid, name);
-                }
-            }
-        } catch (IOException | RuntimeException ignored) {
-            // The live Bukkit whitelist remains the source of truth when the file cannot be
-            // read.
-        }
-        return names;
-    }
+
 
 }

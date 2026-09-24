@@ -37,7 +37,7 @@ Staff can then open `/wl` and see those players without having to search through
 2. The join is rejected normally.
 3. PendingWhitelist records the attempt.
 4. Staff can review the player with `/wl` or `/wl pl`.
-5. The player can be added with the GUI or `/wl add <player>`.
+5. The player can be added with the GUI or `/wl add <player>`. When Floodgate is installed, Bedrock players can also be added explicitly with `/wlb add <player>`.
 
 
 ## Features
@@ -113,6 +113,7 @@ Repeated notifications are limited by the configured cooldown.
 | `/wl` | Open the admin dashboard. |
 | `/wl add` | Open the Add Players GUI. |
 | `/wl add <player>` | Add a player to the whitelist. |
+| `/wlb add <player>` | Add a Bedrock player to the whitelist through Floodgate (available only when Floodgate is installed). |
 | `/wl list [page]` | List currently whitelisted players in chat. |
 | `/wl remove` | Open the Whitelisted Players GUI. |
 | `/wl remove <player...>` | Remove players from the whitelist. |
@@ -124,7 +125,9 @@ Repeated notifications are limited by the configured cooldown.
 | `/wl reload` | Reload PendingWhitelist configuration. |
 | `/wl version` | Check for a newer stable release on Modrinth. |
 
-All administration commands require `pendingwhitelist.admin`.
+Use `/wl add` for pending or known players. `/wlb add` is registered only when Floodgate is installed and adds a non-whitelisted Bedrock player using a pending entry, a known offline Floodgate player, an unknown Bedrock gamertag resolved through the Geyser Global API, or a Floodgate UUID.
+
+All whitelist administration commands require `pendingwhitelist.admin`.
 
 ## Configuration
 

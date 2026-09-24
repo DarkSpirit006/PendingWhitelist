@@ -3,9 +3,9 @@ package dev.darkspirit69.pendingwhitelist.update;
 import dev.darkspirit69.pendingwhitelist.logging.DebugLog;
 import dev.darkspirit69.pendingwhitelist.PendingWhitelistPlugin;
 import dev.darkspirit69.pendingwhitelist.text.MessageStyle;
+import dev.darkspirit69.pendingwhitelist.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
-import net.kyori.adventure.text.event.HoverEvent;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
@@ -29,9 +29,9 @@ public final class UpdateNotifier {
                 return;
             }
             int versionsBehind = updateService.countVersionsBehind(result, installed);
-            player.sendMessage(Component.text("You are " + versionsBehind + " "
-                    + versionWord(versionsBehind) + " behind.", MessageStyle.WARNING));
-            player.sendMessage(Component.text("Download the new version at:", MessageStyle.SECONDARY));
+            TextUtil.send(player, "You are " + versionsBehind + " "
+                    + versionWord(versionsBehind) + " behind.");
+            TextUtil.send(player, "Download the new version at:");
             player.sendMessage(updateLink());
         });
     }
@@ -52,22 +52,21 @@ public final class UpdateNotifier {
     private void sendVersionResult(CommandSender sender, UpdateResult result) {
         String installed = plugin.getInstalledVersion();
         if (!result.hasRelease()) {
-            sender.sendMessage(Component.text("Current version: v" + installed, MessageStyle.SECONDARY));
-            sender.sendMessage(Component.text("Could not determine the latest Modrinth version.",
-                    MessageStyle.ERROR));
+            TextUtil.send(sender, "Current version: v" + installed);
+            TextUtil.send(sender, "Could not determine the latest Modrinth version.");
             return;
         }
 
-        sender.sendMessage(Component.text("Current version: v" + installed, MessageStyle.SECONDARY));
+        TextUtil.send(sender, "Current version: v" + installed);
         if (!updateService.isNewer(result.latestVersion(), installed)) {
-            sender.sendMessage(Component.text("Plugin is up to date.", MessageStyle.SUCCESS));
+            TextUtil.send(sender, "Plugin is up to date.");
             return;
         }
 
         int versionsBehind = updateService.countVersionsBehind(result, installed);
-        sender.sendMessage(Component.text("You are " + versionsBehind + " "
-                + versionWord(versionsBehind) + " behind.", MessageStyle.WARNING));
-        sender.sendMessage(Component.text("Download the new version at:", MessageStyle.SECONDARY));
+        TextUtil.send(sender, "You are " + versionsBehind + " "
+                + versionWord(versionsBehind) + " behind.");
+        TextUtil.send(sender, "Download the new version at:");
         sender.sendMessage(updateLink());
     }
 
@@ -77,7 +76,6 @@ public final class UpdateNotifier {
 
     private Component updateLink() {
         return Component.text(PROJECT_URL, MessageStyle.PRIMARY)
-                .clickEvent(ClickEvent.openUrl(PROJECT_URL))
-                .hoverEvent(HoverEvent.showText(Component.text(PROJECT_URL)));
+                .clickEvent(ClickEvent.openUrl(PROJECT_URL));
     }
 }

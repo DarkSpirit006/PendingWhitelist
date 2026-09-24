@@ -4,6 +4,7 @@ import dev.darkspirit69.pendingwhitelist.command.WlCommandContext;
 import dev.darkspirit69.pendingwhitelist.gui.WlGui;
 import dev.darkspirit69.pendingwhitelist.logging.DebugLog;
 import dev.darkspirit69.pendingwhitelist.text.MessageStyle;
+import dev.darkspirit69.pendingwhitelist.util.FloodgateUtil;
 import dev.darkspirit69.pendingwhitelist.util.TextUtil;
 import org.bukkit.command.CommandSender;
 
@@ -33,6 +34,10 @@ public final class WlGeneralHandler {
                 + MessageStyle.SECONDARY_LEGACY + "- List whitelisted players");
         TextUtil.send(sender, MessageStyle.PRIMARY_LEGACY + "/wl add <name...> "
                 + MessageStyle.SECONDARY_LEGACY + "- Add players to the whitelist");
+        if (FloodgateUtil.isAvailable()) {
+            TextUtil.send(sender, MessageStyle.PRIMARY_LEGACY + "/wlb add <name...> "
+                    + MessageStyle.SECONDARY_LEGACY + "- Add Bedrock players to the whitelist");
+        }
         TextUtil.send(sender, MessageStyle.PRIMARY_LEGACY + "/wl remove <name...> "
                 + MessageStyle.SECONDARY_LEGACY + "- Remove players from the whitelist");
         TextUtil.send(sender, MessageStyle.PRIMARY_LEGACY + "/wl rpl <name...> "

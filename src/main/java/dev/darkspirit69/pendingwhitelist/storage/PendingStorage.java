@@ -6,6 +6,7 @@ import com.google.gson.JsonParseException;
 import dev.darkspirit69.pendingwhitelist.util.FloodgateUtil;
 import dev.darkspirit69.pendingwhitelist.util.SkinHeadUtil;
 import dev.darkspirit69.pendingwhitelist.util.SoundUtil;
+import dev.darkspirit69.pendingwhitelist.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
@@ -141,10 +142,13 @@ public final class PendingStorage implements PendingRepository {
 
     private String resolveDisplayName(String username, UUID uuid, PendingEntry existing) {
         String resolvedName = normalizeIdentifier(username);
+        if (uuid != null && FloodgateUtil.isFloodgateId(uuid)) {
+            resolvedName = FloodgateUtil.stripPrefix(resolvedName);
+        }
         if (resolvedName == null) {
             FloodgateUtil.Identity identity = FloodgateUtil.resolveOnlineIdentity(uuid);
             if (identity != null) {
-                resolvedName = identity.username();
+                resolvedName = FloodgateUtil.stripPrefix(identity.username());
             }
         }
         if (resolvedName == null) {
@@ -160,13 +164,7 @@ public final class PendingStorage implements PendingRepository {
         if (uuid == null) {
             return null;
         }
-
-        Player livePlayer = Bukkit.getPlayer(uuid);
-        if (livePlayer != null) {
-            return normalizeIdentifier(livePlayer.getName());
-        }
-
-        return normalizeIdentifier(Bukkit.getOfflinePlayer(uuid).getName());
+        return normalizeIdentifier(whitelistService.resolveDisplayName(uuid));
     }
 
     private void notifyAdmins(String username, UUID uuid, String resolvedName, int attempts) {
@@ -175,38 +173,26 @@ public final class PendingStorage implements PendingRepository {
         String commandIdentifier = isPlayerName(resolvedName) ? resolvedName
                 : (isPlayerName(username) ? username : identifier);
 
-        Component hover = Component.text()
-                .append(Component.text("Player: ", MessageStyle.SECONDARY))
-                .append(Component.text(displayName, MessageStyle.VALUE))
-                .append(Component.newline())
-                .append(Component.text("UUID: ", MessageStyle.SECONDARY))
-                .append(Component.text(uuid == null ? "unknown" : uuid.toString(), MessageStyle.VALUE))
-                .append(Component.newline())
-                .append(Component.text("Attempts: ", MessageStyle.SECONDARY))
-                .append(Component.text(String.valueOf(attempts), MessageStyle.VALUE))
-                .build();
-
-        Component add = action("Add", MessageStyle.SUCCESS,
-                "/wl add " + commandIdentifier, "Add this player to the whitelist");
-        Component remove = action("Remove", MessageStyle.ERROR,
-                "/wl rpl " + commandIdentifier, "Remove this player from pending");
-        Component open = action("Open GUI", MessageStyle.PRIMARY,
-                "/wl add", "Open the Add Players GUI");
-        Component message = Component.text("PendingWhitelist", MessageStyle.PRIMARY)
-                .append(Component.space())
-                .append(Component.text("•", MessageStyle.SECONDARY))
-                .append(Component.space())
-                .append(Component.text(displayName, MessageStyle.VALUE))
-                .append(Component.space())
-                .append(Component.text("is waiting for review", MessageStyle.SECONDARY))
+        boolean bedrock = uuid != null && FloodgateUtil.isAvailable() && FloodgateUtil.isFloodgateId(uuid);
+        String type = bedrock ? "Bedrock" : "Java";
+        Component hover = TextUtil.playerInfoHover(
+                displayName, type, uuid == null ? null : uuid.toString(), attempts);
+        String addCommand = bedrock ? "/wlb add " + commandIdentifier : "/wl add " + commandIdentifier;
+        Component add = action("Add", MessageStyle.SUCCESS, addCommand, "Add player to the whitelist");
+        Component remove = action("Remove", MessageStyle.ERROR, "/wl rpl " + commandIdentifier,
+                "Remove player from pending list");
+        Component open = action("Open GUI", MessageStyle.PRIMARY, "/wl add", "Open the whitelist GUI");
+        Component message = Component.empty()
+                .append(Component.text(displayName, MessageStyle.VALUE)
+                        .hoverEvent(HoverEvent.showText(hover)))
+                .append(Component.text(" is waiting for whitelist review.", MessageStyle.SECONDARY))
                 .append(Component.newline())
                 .append(Component.text("Actions: ", MessageStyle.SECONDARY))
                 .append(add)
                 .append(Component.space())
                 .append(remove)
                 .append(Component.space())
-                .append(open)
-                .hoverEvent(HoverEvent.showText(hover));
+                .append(open);
 
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (player == null) {
@@ -219,10 +205,10 @@ public final class PendingStorage implements PendingRepository {
         }
     }
 
-    private Component action(String label, NamedTextColor color, String command, String hoverText) {
+    private Component action(String label, NamedTextColor color, String command, String tip) {
         return Component.text(label, color)
                 .clickEvent(ClickEvent.runCommand(command))
-                .hoverEvent(HoverEvent.showText(Component.text(hoverText, color)));
+                .hoverEvent(HoverEvent.showText(Component.text(tip, MessageStyle.SECONDARY)));
     }
 
     private String firstNonBlank(String first, String second, String fallback) {
@@ -277,7 +263,23 @@ public final class PendingStorage implements PendingRepository {
         if (normalized == null) {
             return null;
         }
-        return findMatchingEntry(normalized, parseUuid(normalized));
+
+        PendingEntry directMatch = findMatchingEntry(normalized, parseUuid(normalized));
+        if (directMatch != null) {
+            return directMatch;
+        }
+
+        for (PendingEntry entry : pending) {
+            UUID uuid = parseUuid(entry.uuid());
+            if (uuid == null) {
+                continue;
+            }
+            String rememberedName = normalizeIdentifier(whitelistService.getKnownWhitelistName(uuid));
+            if (rememberedName != null && rememberedName.equalsIgnoreCase(normalized)) {
+                return entry;
+            }
+        }
+        return null;
     }
 
     public String resolveDisplayNameForIdentifier(String identifier) {
@@ -288,10 +290,18 @@ public final class PendingStorage implements PendingRepository {
 
         PendingEntry entry = findPendingEntry(normalized);
         if (entry != null) {
-            if (entry.name() != null && !entry.name().isBlank()) {
-                return entry.name();
+            UUID entryUuid = parseUuid(entry.uuid());
+            String name = normalizeIdentifier(entry.name());
+            if (entryUuid != null && FloodgateUtil.isFloodgateId(entryUuid)) {
+                name = FloodgateUtil.stripPrefix(name);
             }
-            String resolved = resolvePlayerName(parseUuid(entry.uuid()));
+            if (name != null) {
+                return name;
+            }
+            String resolved = resolvePlayerName(entryUuid);
+            if (entryUuid != null && FloodgateUtil.isFloodgateId(entryUuid)) {
+                resolved = FloodgateUtil.stripPrefix(resolved);
+            }
             return firstNonBlank(resolved, entry.uuid(), normalized);
         }
 
@@ -302,7 +312,7 @@ public final class PendingStorage implements PendingRepository {
     public List<String> getPendingUsernames() {
         List<String> names = new ArrayList<>(pending.size());
         for (PendingEntry entry : pending) {
-            names.add(entry.displayName());
+            names.add(resolvePendingDisplayName(entry));
         }
         names.sort(String.CASE_INSENSITIVE_ORDER);
         return names;
@@ -320,9 +330,25 @@ public final class PendingStorage implements PendingRepository {
     public List<String> getPendingUsernamesSortedByRecencyDesc() {
         List<String> names = new ArrayList<>();
         for (PendingEntry entry : getPendingEntriesSortedByRecencyDesc()) {
-            names.add(entry.displayName());
+            names.add(resolvePendingDisplayName(entry));
         }
         return names;
+    }
+
+    private String resolvePendingDisplayName(PendingEntry entry) {
+        UUID uuid = parseUuid(entry.uuid());
+        String name = normalizeIdentifier(entry.name());
+        if (uuid != null && FloodgateUtil.isFloodgateId(uuid)) {
+            name = FloodgateUtil.stripPrefix(name);
+        }
+        if (name != null) {
+            return name;
+        }
+        String resolved = resolvePlayerName(uuid);
+        if (uuid != null && FloodgateUtil.isFloodgateId(uuid)) {
+            resolved = FloodgateUtil.stripPrefix(resolved);
+        }
+        return firstNonBlank(resolved, entry.uuid(), "unknown");
     }
 
     public int purgeExpiredEntries(long cutoffMillis) {
@@ -415,8 +441,18 @@ public final class PendingStorage implements PendingRepository {
     }
 
     @Override
+    public CompletableFuture<Boolean> addFloodgatePlayerToWhitelistAsync(String username) {
+        return whitelistService.addFloodgatePlayerToWhitelistAsync(username);
+    }
+
+    @Override
     public boolean addFloodgatePlayerToWhitelist(UUID uuid, String username) {
         return whitelistService.addFloodgatePlayerToWhitelist(uuid, username);
+    }
+
+    @Override
+    public boolean setWhitelistEnabled(boolean enabled) {
+        return whitelistService.setWhitelistEnabled(enabled);
     }
 
     @Override
@@ -430,13 +466,13 @@ public final class PendingStorage implements PendingRepository {
     }
 
     @Override
-    public void rememberWhitelistName(UUID uuid, String name) {
-        whitelistService.rememberWhitelistName(uuid, name);
+    public String resolveDisplayName(UUID uuid) {
+        return whitelistService.resolveDisplayName(uuid);
     }
 
     @Override
-    public void repairWhitelistJsonName(UUID uuid, String name) {
-        whitelistService.repairWhitelistJsonName(uuid, name);
+    public void rememberWhitelistName(UUID uuid, String name) {
+        whitelistService.rememberWhitelistName(uuid, name);
     }
 
     @Override
@@ -472,7 +508,6 @@ public final class PendingStorage implements PendingRepository {
         }
         notificationCooldowns.clear();
         persistence.shutdown(List.copyOf(pending), "save pending entries during shutdown");
-        whitelistService.shutdown();
     }
 
     private void rebuildIndexes() {

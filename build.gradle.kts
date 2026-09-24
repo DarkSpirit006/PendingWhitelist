@@ -47,7 +47,6 @@ tasks.test {
     useJUnitPlatform()
 }
 
-// Keep the version in one place.
 tasks.processResources {
     filesMatching("paper-plugin.yml") {
         expand(mapOf("version" to pluginVersion))
@@ -81,7 +80,6 @@ tasks.shadowJar {
     }
 }
 
-// The release artifact is the shaded JAR.
 tasks.build {
     dependsOn(tasks.shadowJar)
 }

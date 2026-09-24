@@ -31,15 +31,19 @@ public interface PendingRepository {
 
     CompletableFuture<Boolean> addToWhitelistAsync(String identifier);
 
+    CompletableFuture<Boolean> addFloodgatePlayerToWhitelistAsync(String username);
+
     boolean addFloodgatePlayerToWhitelist(UUID uuid, String username);
 
     boolean isFloodgateUuid(String identifier);
 
+    boolean setWhitelistEnabled(boolean enabled);
+
     String getKnownWhitelistName(UUID uuid);
 
-    void rememberWhitelistName(UUID uuid, String name);
+    String resolveDisplayName(UUID uuid);
 
-    void repairWhitelistJsonName(UUID uuid, String name);
+    void rememberWhitelistName(UUID uuid, String name);
 
     boolean isPending(String identifier);
 

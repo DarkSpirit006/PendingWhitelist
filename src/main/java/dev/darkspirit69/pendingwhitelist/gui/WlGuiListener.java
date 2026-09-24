@@ -1,13 +1,13 @@
 package dev.darkspirit69.pendingwhitelist.gui;
 
-import dev.darkspirit69.pendingwhitelist.logging.DebugLog;
 import dev.darkspirit69.pendingwhitelist.PendingWhitelistPlugin;
+import dev.darkspirit69.pendingwhitelist.logging.DebugLog;
 import dev.darkspirit69.pendingwhitelist.storage.PendingRepository;
+import dev.darkspirit69.pendingwhitelist.text.MessageStyle;
+import dev.darkspirit69.pendingwhitelist.util.FloodgateUtil;
 import dev.darkspirit69.pendingwhitelist.util.SoundUtil;
 import dev.darkspirit69.pendingwhitelist.util.TextUtil;
-import dev.darkspirit69.pendingwhitelist.text.MessageStyle;
 import org.bukkit.Bukkit;
-import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -15,8 +15,12 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 
 /** Handles clicks and navigation for the plugin GUI. */
 public final class WlGuiListener implements Listener {
@@ -29,6 +33,7 @@ public final class WlGuiListener implements Listener {
 
     private final PendingWhitelistPlugin plugin;
     private final PendingRepository pendingStorage;
+    private final Set<UUID> bedrockAddsInProgress = ConcurrentHashMap.newKeySet();
 
     public WlGuiListener(PendingWhitelistPlugin plugin, PendingRepository pendingStorage) {
         this.plugin = plugin;
@@ -137,12 +142,19 @@ public final class WlGuiListener implements Listener {
             return;
         }
         if (shiftClick) {
-            bulkAdd(player, gui);
-            gui.invalidateAddCandidates();
-            gui.openAddPage(player, Math.min(gui.getPage(), gui.getAddPageCount()));
+            boolean asyncInFlight = bulkAdd(player, gui);
+            if (!asyncInFlight) {
+                gui.invalidateAddCandidates();
+                gui.openAddPage(player, Math.min(gui.getPage(), gui.getAddPageCount()));
+            }
             return;
         }
-        addPlayer(player, candidate);
+        if (candidate.bedrock()) {
+            // Floodgate resolves Bedrock additions asynchronously.
+            addPlayer(player, gui, candidate);
+            return;
+        }
+        addPlayer(player, gui, candidate);
         gui.invalidateAddCandidates();
         gui.openAddPage(player, Math.min(gui.getPage(), gui.getAddPageCount()));
     }
@@ -152,16 +164,15 @@ public final class WlGuiListener implements Listener {
         boolean removed = pendingStorage.removePendingOnly(uuid.toString());
         if (removed) {
             SoundUtil.success(player);
-            TextUtil.send(player, MessageStyle.SUCCESS_LEGACY + "Removed " + MessageStyle.VALUE_LEGACY
-                    + candidate.name() + " " + MessageStyle.SECONDARY_LEGACY + "from pending players.");
+            TextUtil.sendResult(player, "Removed", candidate.name(), MessageStyle.SUCCESS, "from pending players");
         } else {
             SoundUtil.failure(player);
-            TextUtil.send(player, MessageStyle.ERROR_LEGACY + "Could not remove " + MessageStyle.VALUE_LEGACY
-                    + candidate.name() + " " + MessageStyle.ERROR_LEGACY + "from pending players.");
+            TextUtil.sendResult(player, "Could not remove", candidate.name(), MessageStyle.ERROR,
+                    "from pending players");
         }
     }
 
-    private void addPlayer(Player player, WlGui.AddCandidate candidate) {
+    private void addPlayer(Player player, WlGui gui, WlGui.AddCandidate candidate) {
         String name = candidate.name();
         if (name == null || name.isBlank()) {
             name = candidate.player() != null ? candidate.player().getName() : null;
@@ -171,16 +182,61 @@ public final class WlGuiListener implements Listener {
             TextUtil.send(player, MessageStyle.ERROR_LEGACY + "Could not add player: no username is known.");
             return;
         }
-        if (candidate.player() != null && pendingStorage.addToWhitelist(candidate.player().getUniqueId(), name)) {
+
+        if (candidate.bedrock()) {
+            addBedrockPlayer(player, gui, candidate, name);
+            return;
+        }
+
+        UUID uuid = candidate.player() == null ? null : candidate.player().getUniqueId();
+        boolean added = uuid != null && pendingStorage.addToWhitelist(uuid, name);
+        if (added) {
             removePendingAfterWhitelistAdd(candidate, name);
             SoundUtil.success(player);
-            TextUtil.send(player, MessageStyle.SUCCESS_LEGACY + "Added " + MessageStyle.VALUE_LEGACY
-                    + name + " " + MessageStyle.SECONDARY_LEGACY + "to the whitelist.");
+            TextUtil.sendResult(player, "Added", name, MessageStyle.SUCCESS, "to the whitelist");
         } else {
             SoundUtil.failure(player);
-            TextUtil.send(player, MessageStyle.ERROR_LEGACY + "Could not add " + MessageStyle.VALUE_LEGACY
-                    + name + " " + MessageStyle.ERROR_LEGACY + "to the whitelist.");
+            TextUtil.sendResult(player, "Could not add", name, MessageStyle.ERROR, "to the whitelist");
         }
+    }
+
+    private void addBedrockPlayer(Player player, WlGui gui, WlGui.AddCandidate candidate, String name) {
+        UUID candidateUuid = candidate.player() == null ? null : candidate.player().getUniqueId();
+        if (!FloodgateUtil.isAvailable()) {
+            SoundUtil.failure(player);
+            TextUtil.send(player, MessageStyle.ERROR_LEGACY + "Floodgate is not available.");
+            return;
+        }
+        if (candidateUuid == null || !bedrockAddsInProgress.add(candidateUuid)) {
+            SoundUtil.failure(player);
+            TextUtil.send(player, MessageStyle.WARNING_LEGACY + MessageStyle.VALUE_LEGACY + name
+                    + MessageStyle.SECONDARY_LEGACY + " is already being resolved.");
+            return;
+        }
+
+        String resolvedName = name;
+        pendingStorage.addFloodgatePlayerToWhitelistAsync(name)
+                .whenComplete((added, error) -> Bukkit.getScheduler().runTask(plugin, () -> {
+                    bedrockAddsInProgress.remove(candidateUuid);
+                    if (!plugin.isEnabled() || !player.isOnline()) {
+                        return;
+                    }
+                    if (error != null) {
+                        DebugLog.error("Could not add Bedrock player " + resolvedName + " to the whitelist.", error);
+                        SoundUtil.failure(player);
+                        TextUtil.sendResult(player, "Could not add", resolvedName, MessageStyle.ERROR,
+                                "to the whitelist");
+                    } else if (Boolean.TRUE.equals(added)) {
+                        removePendingAfterWhitelistAdd(candidate, resolvedName);
+                        SoundUtil.success(player);
+                        TextUtil.sendResult(player, "Added", resolvedName, MessageStyle.SUCCESS, "to the whitelist");
+                    } else {
+                        SoundUtil.failure(player);
+                        TextUtil.sendResult(player, "Could not add", resolvedName, MessageStyle.ERROR,
+                                "to the whitelist");
+                    }
+                    refreshAddViewNextTick(player, gui);
+                }));
     }
 
     private void removePendingAfterWhitelistAdd(WlGui.AddCandidate candidate, String fallbackName) {
@@ -196,32 +252,106 @@ public final class WlGuiListener implements Listener {
         }
     }
 
-    private String playerWord(int count) {
-        return count == 1 ? "player" : "players";
-    }
-
-    private void bulkAdd(Player player, WlGui gui) {
+    private boolean bulkAdd(Player player, WlGui gui) {
         int changed = 0;
+        List<String> addedNames = new ArrayList<>();
+        boolean floodgateAvailable = FloodgateUtil.isAvailable();
+        boolean skippedBedrock = false;
+        List<CompletableFuture<WlGuiAddResult>> bedrockOperations = new ArrayList<>();
+
         for (WlGui.AddCandidate candidate : gui.getVisibleAddCandidates()) {
             String name = candidate.name();
             if ((name == null || name.isBlank()) && candidate.player() != null) {
                 name = candidate.player().getName();
             }
-            if (name != null && !name.isBlank() && candidate.player() != null
-                    && pendingStorage.addToWhitelist(candidate.player().getUniqueId(), name)) {
+            if (name == null || name.isBlank() || candidate.player() == null) {
+                continue;
+            }
+
+            UUID uuid = candidate.player().getUniqueId();
+            if (candidate.bedrock()) {
+                if (!floodgateAvailable) {
+                    skippedBedrock = true;
+                    continue;
+                }
+                if (!bedrockAddsInProgress.add(uuid)) {
+                    continue;
+                }
+                String resolvedName = name;
+                bedrockOperations.add(pendingStorage.addFloodgatePlayerToWhitelistAsync(name)
+                        .handle((added, error) -> new WlGuiAddResult(candidate, resolvedName,
+                                Boolean.TRUE.equals(added), error)));
+                continue;
+            }
+
+            if (pendingStorage.addToWhitelist(uuid, name)) {
                 removePendingAfterWhitelistAdd(candidate, name);
                 changed++;
+                addedNames.add(name);
             }
         }
+
+        if (bedrockOperations.isEmpty()) {
+            sendBulkAddResult(player, changed, addedNames);
+            if (skippedBedrock) {
+                TextUtil.send(player, MessageStyle.ERROR_LEGACY + "Floodgate is not available.");
+            }
+            return false;
+        }
+
+        if (skippedBedrock) {
+            TextUtil.send(player, MessageStyle.ERROR_LEGACY + "Floodgate is not available for some players.");
+        }
+        int javaAdded = changed;
+        CompletableFuture.allOf(bedrockOperations.toArray(CompletableFuture[]::new))
+                .thenRun(() -> Bukkit.getScheduler().runTask(plugin, () -> {
+                    int totalChanged = javaAdded;
+                    for (CompletableFuture<WlGuiAddResult> operation : bedrockOperations) {
+                        WlGuiAddResult result = operation.join();
+                        bedrockAddsInProgress.remove(result.candidate().player().getUniqueId());
+                        if (result.error() != null) {
+                            DebugLog.error("Could not add Bedrock player " + result.name() + " to the whitelist.",
+                                    result.error());
+                            continue;
+                        }
+                        if (result.added()) {
+                            removePendingAfterWhitelistAdd(result.candidate(), result.name());
+                            totalChanged++;
+                            addedNames.add(result.name());
+                        }
+                    }
+                    if (!plugin.isEnabled()) {
+                        return;
+                    }
+                    sendBulkAddResult(player, totalChanged, addedNames);
+                    refreshAddViewNextTick(player, gui);
+                }));
+        return true;
+    }
+
+    private void refreshAddViewNextTick(Player player, WlGui gui) {
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (!plugin.isEnabled() || !player.isOnline() || !plugin.isGuiViewer(player.getUniqueId())
+                    || gui.getView() != WlGui.View.ADD) {
+                return;
+            }
+            gui.invalidateAddCandidates();
+            gui.openAddPage(player, gui.getPage());
+        });
+    }
+
+    private void sendBulkAddResult(Player player, int changed, List<String> addedNames) {
         if (changed > 0) {
             SoundUtil.success(player);
-            TextUtil.send(player, MessageStyle.SUCCESS_LEGACY + "Added " + MessageStyle.VALUE_LEGACY
-                    + changed + " " + MessageStyle.SECONDARY_LEGACY + playerWord(changed)
-                    + " to the whitelist.");
+            TextUtil.sendCountResult(player, "Added", changed, MessageStyle.SUCCESS, "to the whitelist",
+                    addedNames);
         } else {
             SoundUtil.failure(player);
             TextUtil.send(player, MessageStyle.WARNING_LEGACY + "No players were added to the whitelist.");
         }
+    }
+
+    private record WlGuiAddResult(WlGui.AddCandidate candidate, String name, boolean added, Throwable error) {
     }
 
     private void handleWhitelisted(Player player, WlGui gui, int slot, boolean rightClick, boolean shiftClick) {
@@ -245,7 +375,7 @@ public final class WlGuiListener implements Listener {
         }
         if (shiftClick) {
             bulkWhitelistRemove(player, gui);
-            gui.openWhitelistedPage(player, Math.min(gui.getPage(), gui.getWhitelistedPageCount()));
+            refreshWhitelistedViewNextTick(player, gui);
             return;
         }
         WlGui.WhitelistEntry entry = gui.getWhitelistedEntryAtSlot(slot);
@@ -253,35 +383,45 @@ public final class WlGuiListener implements Listener {
             return;
         }
         String name = entry.name();
-        OfflinePlayer target = entry.player();
-        if (target.isWhitelisted()) {
-            target.setWhitelisted(false);
+        boolean removed = pendingStorage.removeFromWhitelist(name);
+        if (removed) {
             SoundUtil.success(player);
-            TextUtil.send(player, MessageStyle.SUCCESS_LEGACY + "Removed " + MessageStyle.VALUE_LEGACY
-                    + name + " " + MessageStyle.SECONDARY_LEGACY + "from the whitelist.");
+            TextUtil.sendResult(player, "Removed", name, MessageStyle.SUCCESS, "from the whitelist");
+            refreshWhitelistedViewNextTick(player, gui);
         } else {
             SoundUtil.failure(player);
-            TextUtil.send(player, MessageStyle.ERROR_LEGACY + "Could not remove " + MessageStyle.VALUE_LEGACY
-                    + name + " " + MessageStyle.ERROR_LEGACY + "from the whitelist.");
+            TextUtil.sendResult(player, "Could not remove", name, MessageStyle.ERROR, "from the whitelist");
+            gui.openWhitelistedPage(player, Math.min(gui.getPage(), gui.getWhitelistedPageCount()));
         }
-        gui.openWhitelistedPage(player, Math.min(gui.getPage(), gui.getWhitelistedPageCount()));
+    }
+
+    private void refreshWhitelistedViewNextTick(Player player, WlGui gui) {
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (!plugin.isEnabled() || !player.isOnline() || !plugin.isGuiViewer(player.getUniqueId())
+                    || gui.getView() != WlGui.View.WHITELISTED) {
+                return;
+            }
+            gui.openWhitelistedPage(player, Math.min(gui.getPage(), gui.getWhitelistedPageCount()));
+        });
     }
 
     private void bulkWhitelistRemove(Player player, WlGui gui) {
         List<WlGui.WhitelistEntry> entries = gui.getVisibleWhitelistedEntries();
         int changed = 0;
+        List<String> removedNames = new ArrayList<>();
         for (WlGui.WhitelistEntry entry : entries) {
-            OfflinePlayer target = entry.player();
-            if (target.isWhitelisted()) {
-                target.setWhitelisted(false);
+            if (pendingStorage.removeFromWhitelist(entry.name())) {
                 changed++;
+                String name = entry.name();
+                if (name != null && !name.isBlank()) {
+                    removedNames.add(name);
+                }
             }
         }
         if (changed > 0) {
             SoundUtil.success(player);
-            TextUtil.send(player, MessageStyle.SUCCESS_LEGACY + "Removed " + MessageStyle.VALUE_LEGACY
-                    + changed + " " + MessageStyle.SECONDARY_LEGACY + playerWord(changed)
-                    + " from the whitelist.");
+            TextUtil.sendCountResult(player, "Removed", changed, MessageStyle.SUCCESS,
+                    "from the whitelist", removedNames);
         } else {
             SoundUtil.failure(player);
             TextUtil.send(player, MessageStyle.WARNING_LEGACY + "No players were removed from the whitelist.");
@@ -313,7 +453,12 @@ public final class WlGuiListener implements Listener {
 
     private void toggleWhitelist(Player player) {
         boolean enabled = !plugin.getServer().hasWhitelist();
-        plugin.getServer().setWhitelist(enabled);
+        if (!pendingStorage.setWhitelistEnabled(enabled)) {
+            SoundUtil.failure(player);
+            TextUtil.send(player, MessageStyle.WARNING_LEGACY
+                    + (enabled ? "Whitelist is already enabled." : "Whitelist is already disabled."));
+            return;
+        }
         SoundUtil.success(player);
         TextUtil.send(player, (enabled ? MessageStyle.SUCCESS_LEGACY : MessageStyle.WARNING_LEGACY)
                 + (enabled ? "Whitelist enabled." : "Whitelist disabled."));
