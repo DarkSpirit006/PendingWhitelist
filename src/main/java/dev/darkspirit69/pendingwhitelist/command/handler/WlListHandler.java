@@ -1,11 +1,11 @@
 package dev.darkspirit69.pendingwhitelist.command.handler;
 
-import dev.darkspirit69.pendingwhitelist.logging.DebugLog;
 import dev.darkspirit69.pendingwhitelist.command.WlCommandContext;
+import dev.darkspirit69.pendingwhitelist.logging.DebugLog;
 import dev.darkspirit69.pendingwhitelist.model.PendingEntry;
-import dev.darkspirit69.pendingwhitelist.util.TextUtil;
-import dev.darkspirit69.pendingwhitelist.util.FloodgateUtil;
 import dev.darkspirit69.pendingwhitelist.text.MessageStyle;
+import dev.darkspirit69.pendingwhitelist.util.FloodgateUtil;
+import dev.darkspirit69.pendingwhitelist.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
@@ -48,14 +48,12 @@ public final class WlListHandler {
         int start = (page - 1) * pageSize;
         int end = Math.min(start + pageSize, entries.size());
 
-        TextUtil.send(sender, "Pending players (" + entries.size() + "):");
+        Component message = Component.text("Pending players (" + entries.size() + "):", MessageStyle.SECONDARY);
         for (int i = start; i < end; i++) {
-            sendPendingLine(sender, entries.get(i));
+            message = message.append(Component.newline()).append(pendingLine(entries.get(i)));
         }
-        if (totalPages > 1) {
-            TextUtil.send(sender, "Page " + page + " of " + totalPages);
-        }
-        sendPageNavigation(sender, "/wl pl", page, totalPages);
+        message = appendPageFooter(message, "/wl pl", page, totalPages);
+        TextUtil.send(sender, message);
         return true;
     }
 
@@ -83,40 +81,25 @@ public final class WlListHandler {
         int start = (page - 1) * pageSize;
         int end = Math.min(start + pageSize, names.size());
 
-        sendWhitelistedSummary(sender, names, start, end);
-        if (totalPages > 1) {
-            TextUtil.send(sender, "Page " + page + " of " + totalPages);
-        }
-        sendPageNavigation(sender, "/wl list", page, totalPages);
+        Component message = whitelistedSummary(sender, names, start, end);
+        message = appendPageFooter(message, "/wl list", page, totalPages);
+        TextUtil.send(sender, message);
         return true;
     }
 
-    private void sendPendingLine(CommandSender sender, PendingEntry entry) {
+    private Component pendingLine(PendingEntry entry) {
         String displayName = entry.displayName();
         UUID pendingUuid = parseUuid(entry.uuid());
         if (pendingUuid != null && FloodgateUtil.isFloodgateId(pendingUuid)) {
             displayName = FloodgateUtil.stripPrefix(displayName);
         }
-        TextUtil.send(sender, Component.text("- ", MessageStyle.SECONDARY)
-                .append(Component.text(displayName, MessageStyle.VALUE)));
+        return Component.text("- ", MessageStyle.SECONDARY)
+                .append(Component.text(displayName, MessageStyle.VALUE));
     }
 
-    private void sendWhitelistedSummary(CommandSender sender, List<String> names, int start, int end) {
-        if (!(sender instanceof Player player)) {
-            StringBuilder message = new StringBuilder("Whitelisted players (")
-                    .append(names.size())
-                    .append("): ");
-            for (int i = start; i < end; i++) {
-                if (i > start) {
-                    message.append(", ");
-                }
-                message.append(names.get(i));
-            }
-            TextUtil.send(sender, message.toString());
-            return;
-        }
-
+    private Component whitelistedSummary(CommandSender sender, List<String> names, int start, int end) {
         Component message = Component.text("Whitelisted players (" + names.size() + "):", MessageStyle.SECONDARY);
+        boolean playerSender = sender instanceof Player;
         for (int i = start; i < end; i++) {
             String name = names.get(i);
             String uuid = context.repository().resolveWhitelistedUuid(name);
@@ -127,12 +110,17 @@ public final class WlListHandler {
                 displayName = FloodgateUtil.stripPrefix(displayName);
             }
             String type = parsedUuid != null && FloodgateUtil.isFloodgateId(parsedUuid) ? "Bedrock" : "Java";
-            Component hover = TextUtil.playerInfoHover(displayName, type, normalizedUuid, null);
+
+            Component nameComponent = Component.text(displayName, MessageStyle.VALUE);
+            if (playerSender) {
+                Component hover = TextUtil.playerInfoHover(displayName, type, normalizedUuid, null);
+                nameComponent = nameComponent.hoverEvent(HoverEvent.showText(hover));
+            }
+
             message = message.append(Component.text(i == start ? " " : ", ", MessageStyle.SECONDARY))
-                    .append(Component.text(displayName, MessageStyle.VALUE)
-                            .hoverEvent(HoverEvent.showText(hover)));
+                    .append(nameComponent);
         }
-        player.sendMessage(message);
+        return message;
     }
 
     private UUID parseUuid(String value) {
@@ -146,25 +134,33 @@ public final class WlListHandler {
         }
     }
 
-    private void sendPageNavigation(CommandSender sender, String command, int page, int totalPages) {
-        if (!(sender instanceof Player player) || totalPages <= 1) {
-            return;
+    private Component appendPageFooter(Component message, String command, int page, int totalPages) {
+        if (totalPages <= 1) {
+            return message;
         }
 
+        Component footer = Component.newline()
+                .append(Component.text("Page " + page + " of " + totalPages, MessageStyle.SECONDARY));
+        Component navigation = pageNavigation(command, page, totalPages);
+        if (navigation != null) {
+            footer = footer.append(Component.text("  ", MessageStyle.SECONDARY)).append(navigation);
+        }
+        return message.append(footer);
+    }
+
+    private Component pageNavigation(String command, int page, int totalPages) {
         Component navigation = Component.empty();
         if (page > 1) {
-            Component previous = Component.text("‹ Previous", MessageStyle.PRIMARY)
-                    .clickEvent(ClickEvent.runCommand(command + " " + (page - 1)));
-            navigation = navigation.append(previous);
+            navigation = navigation.append(Component.text("‹ Previous", MessageStyle.PRIMARY)
+                    .clickEvent(ClickEvent.runCommand(command + " " + (page - 1))));
         }
         if (page > 1 && page < totalPages) {
             navigation = navigation.append(Component.text("  ", MessageStyle.SECONDARY));
         }
         if (page < totalPages) {
-            Component next = Component.text("Next ›", MessageStyle.PRIMARY)
-                    .clickEvent(ClickEvent.runCommand(command + " " + (page + 1)));
-            navigation = navigation.append(next);
+            navigation = navigation.append(Component.text("Next ›", MessageStyle.PRIMARY)
+                    .clickEvent(ClickEvent.runCommand(command + " " + (page + 1))));
         }
-        player.sendMessage(navigation);
+        return navigation.children().isEmpty() ? null : navigation;
     }
 }

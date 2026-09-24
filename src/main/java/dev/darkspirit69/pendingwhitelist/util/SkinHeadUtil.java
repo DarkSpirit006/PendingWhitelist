@@ -259,6 +259,10 @@ public final class SkinHeadUtil {
             return;
         }
         SkinData data = completedCachedSkin(player.getUniqueId(), name);
+        if (FloodgateUtil.isFloodgateId(player.getUniqueId())
+                && (data == null || !data.hasTexture())) {
+            data = SkinData.generic();
+        }
         PlayerProfile profile = createBaseProfile(player, name);
         if (data != null && data.hasTexture()) {
             applySkin(profile, data);
@@ -754,10 +758,15 @@ public final class SkinHeadUtil {
     private record CacheEntry(CompletableFuture<SkinData> future, long expiresAt) {
     }
 
+    private static final String GENERIC_TEXTURE_VALUE =
+            "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHBzOi8vdGV4dHVyZXMubWluZWNyYWZ0Lm5ldC90"
+                    + "ZXh0dXJlLzRhYTU2YWRjMDdkNTc0ZDcyYThiZGE4YTNlMjdlMDNiYzhmOGFiMjc5NzE0MTE2ZGI4NTE"
+                    + "zZWQ1OWQ2N2I5YTEifX19";
+
     private record SkinData(String value, String signature) {
 
         static SkinData generic() {
-            return new SkinData(null, null);
+            return new SkinData(GENERIC_TEXTURE_VALUE, null);
         }
 
         boolean hasTexture() {
