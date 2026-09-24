@@ -259,11 +259,10 @@ public final class SkinHeadUtil {
             return;
         }
         SkinData data = completedCachedSkin(player.getUniqueId(), name);
-        if (data == null || !data.hasTexture()) {
-            return;
-        }
         PlayerProfile profile = createBaseProfile(player, name);
-        applySkin(profile, data);
+        if (data != null && data.hasTexture()) {
+            applySkin(profile, data);
+        }
         meta.setPlayerProfile(profile);
     }
 
@@ -539,7 +538,7 @@ public final class SkinHeadUtil {
                 DebugLog.debug("Skin resolved through Geyser Global API: " + name);
                 return bedrockSkin;
             }
-            DebugLog.debug("No converted Bedrock skin found for " + name + "; using generic profile");
+            DebugLog.debug("No converted Bedrock skin found for " + name + "; using offline default profile");
             return SkinData.generic();
         }
 
@@ -555,7 +554,7 @@ public final class SkinHeadUtil {
             return skinsRestorerSkin;
         }
 
-        DebugLog.debug("No Mojang or SkinsRestorer skin found for " + name + "; using generic profile");
+        DebugLog.debug("No Mojang or SkinsRestorer skin found for " + name + "; using offline default profile");
         return SkinData.generic();
     }
 

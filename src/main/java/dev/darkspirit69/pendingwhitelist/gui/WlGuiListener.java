@@ -253,80 +253,115 @@ public final class WlGuiListener implements Listener {
     }
 
     private boolean bulkAdd(Player player, WlGui gui) {
-        int changed = 0;
-        List<String> addedNames = new ArrayList<>();
-        boolean floodgateAvailable = FloodgateUtil.isAvailable();
-        boolean skippedBedrock = false;
-        List<CompletableFuture<WlGuiAddResult>> bedrockOperations = new ArrayList<>();
-
-        for (WlGui.AddCandidate candidate : gui.getVisibleAddCandidates()) {
-            String name = candidate.name();
-            if ((name == null || name.isBlank()) && candidate.player() != null) {
-                name = candidate.player().getName();
-            }
-            if (name == null || name.isBlank() || candidate.player() == null) {
-                continue;
-            }
-
-            UUID uuid = candidate.player().getUniqueId();
-            if (candidate.bedrock()) {
-                if (!floodgateAvailable) {
-                    skippedBedrock = true;
-                    continue;
-                }
-                if (!bedrockAddsInProgress.add(uuid)) {
-                    continue;
-                }
-                String resolvedName = name;
-                bedrockOperations.add(pendingStorage.addFloodgatePlayerToWhitelistAsync(name)
-                        .handle((added, error) -> new WlGuiAddResult(candidate, resolvedName,
-                                Boolean.TRUE.equals(added), error)));
-                continue;
-            }
-
-            if (pendingStorage.addToWhitelist(uuid, name)) {
-                removePendingAfterWhitelistAdd(candidate, name);
-                changed++;
-                addedNames.add(name);
-            }
-        }
-
-        if (bedrockOperations.isEmpty()) {
-            sendBulkAddResult(player, changed, addedNames);
-            if (skippedBedrock) {
+        BulkAddBatch batch = collectBulkAddBatch(gui);
+        if (batch.bedrockOperations.isEmpty()) {
+            sendBulkAddResult(player, batch.changed, batch.addedNames);
+            if (batch.skippedBedrock) {
                 TextUtil.send(player, MessageStyle.ERROR_LEGACY + "Floodgate is not available.");
             }
             return false;
         }
 
-        if (skippedBedrock) {
-            TextUtil.send(player, MessageStyle.ERROR_LEGACY + "Floodgate is not available for some players.");
+        if (batch.skippedBedrock) {
+            TextUtil.send(player, MessageStyle.ERROR_LEGACY
+                    + "Floodgate is not available for some players.");
         }
-        int javaAdded = changed;
-        CompletableFuture.allOf(bedrockOperations.toArray(CompletableFuture[]::new))
+        scheduleBedrockBulkAdd(player, gui, batch);
+        return true;
+    }
+
+    private BulkAddBatch collectBulkAddBatch(WlGui gui) {
+        BulkAddBatch batch = new BulkAddBatch();
+        boolean floodgateAvailable = FloodgateUtil.isAvailable();
+        for (WlGui.AddCandidate candidate : gui.getVisibleAddCandidates()) {
+            processBulkAddCandidate(candidate, batch, floodgateAvailable);
+        }
+        return batch;
+    }
+
+    private void processBulkAddCandidate(WlGui.AddCandidate candidate, BulkAddBatch batch,
+            boolean floodgateAvailable) {
+        String name = resolveCandidateName(candidate);
+        if (name == null || candidate.player() == null) {
+            return;
+        }
+
+        if (candidate.bedrock()) {
+            queueBedrockBulkAdd(candidate, name, batch, floodgateAvailable);
+            return;
+        }
+
+        addJavaBulkCandidate(candidate, name, batch);
+    }
+
+    private String resolveCandidateName(WlGui.AddCandidate candidate) {
+        String name = candidate.name();
+        if ((name == null || name.isBlank()) && candidate.player() != null) {
+            name = candidate.player().getName();
+        }
+        return name == null || name.isBlank() ? null : name;
+    }
+
+    private void queueBedrockBulkAdd(WlGui.AddCandidate candidate, String name, BulkAddBatch batch,
+            boolean floodgateAvailable) {
+        if (!floodgateAvailable) {
+            batch.skippedBedrock = true;
+            return;
+        }
+
+        UUID uuid = candidate.player().getUniqueId();
+        if (!bedrockAddsInProgress.add(uuid)) {
+            return;
+        }
+
+        batch.bedrockOperations.add(pendingStorage.addFloodgatePlayerToWhitelistAsync(name)
+                .handle((added, error) -> new WlGuiAddResult(candidate, name, Boolean.TRUE.equals(added), error)));
+    }
+
+    private void addJavaBulkCandidate(WlGui.AddCandidate candidate, String name, BulkAddBatch batch) {
+        if (!pendingStorage.addToWhitelist(candidate.player().getUniqueId(), name)) {
+            return;
+        }
+
+        removePendingAfterWhitelistAdd(candidate, name);
+        batch.changed++;
+        batch.addedNames.add(name);
+    }
+
+    private void scheduleBedrockBulkAdd(Player player, WlGui gui, BulkAddBatch batch) {
+        CompletableFuture.allOf(batch.bedrockOperations.toArray(CompletableFuture[]::new))
                 .thenRun(() -> Bukkit.getScheduler().runTask(plugin, () -> {
-                    int totalChanged = javaAdded;
-                    for (CompletableFuture<WlGuiAddResult> operation : bedrockOperations) {
-                        WlGuiAddResult result = operation.join();
-                        bedrockAddsInProgress.remove(result.candidate().player().getUniqueId());
-                        if (result.error() != null) {
-                            DebugLog.error("Could not add Bedrock player " + result.name() + " to the whitelist.",
-                                    result.error());
-                            continue;
-                        }
-                        if (result.added()) {
-                            removePendingAfterWhitelistAdd(result.candidate(), result.name());
-                            totalChanged++;
-                            addedNames.add(result.name());
-                        }
-                    }
+                    processBedrockBulkResults(batch);
                     if (!plugin.isEnabled()) {
                         return;
                     }
-                    sendBulkAddResult(player, totalChanged, addedNames);
+                    sendBulkAddResult(player, batch.changed, batch.addedNames);
                     refreshAddViewNextTick(player, gui);
                 }));
-        return true;
+    }
+
+    private void processBedrockBulkResults(BulkAddBatch batch) {
+        for (CompletableFuture<WlGuiAddResult> operation : batch.bedrockOperations) {
+            WlGuiAddResult result = operation.join();
+            bedrockAddsInProgress.remove(result.candidate().player().getUniqueId());
+            if (result.error() != null) {
+                DebugLog.error("Could not add Bedrock player " + result.name() + " to the whitelist.",
+                        result.error());
+                continue;
+            }
+            if (result.added()) {
+                removePendingAfterWhitelistAdd(result.candidate(), result.name());
+                batch.changed++;
+                batch.addedNames.add(result.name());
+            }
+        }
+    }
+
+    private static final class BulkAddBatch {
+        private int changed;
+        private boolean skippedBedrock;
+        private final List<String> addedNames = new ArrayList<>();
+        private final List<CompletableFuture<WlGuiAddResult>> bedrockOperations = new ArrayList<>();
     }
 
     private void refreshAddViewNextTick(Player player, WlGui gui) {
