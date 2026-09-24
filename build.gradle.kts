@@ -22,7 +22,7 @@ dependencies {
     implementation("com.google.code.gson:gson:2.13.0")
     implementation("org.bstats:bstats-bukkit:3.2.1")
 
-    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
+    testImplementation("org.junit.jupiter:junit-jupiter:6.1.3")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
