@@ -413,7 +413,7 @@ final class WhitelistService {
     private boolean namesEqual(String first, String second) {
         return first != null && second != null
                 && (first.equalsIgnoreCase(second)
-                || first.equalsIgnoreCase(FloodgateUtil.stripPrefix(second)));
+                        || first.equalsIgnoreCase(FloodgateUtil.stripPrefix(second)));
     }
 
     private CompletableFuture<Boolean> addFloodgatePlayerUsingKnownIdentity(UUID uuid, String username) {
@@ -426,7 +426,7 @@ final class WhitelistService {
             return runFloodgateWhitelistAdd(uuid, null, false);
         }
 
-        return runFloodgateWhitelistAdd(uuid, normalizedName, true);
+        return runFloodgateWhitelistAdd(uuid, normalizedName, false);
     }
 
     private static final int WHITELIST_POLL_MAX_ATTEMPTS = 10;
@@ -440,10 +440,7 @@ final class WhitelistService {
                 return;
             }
             if (isExactUuidWhitelisted(uuid)) {
-                String normalizedUsername = normalizeWhitelistName(uuid, username);
-                if (normalizedUsername != null) {
-                    rememberWhitelistName(uuid, normalizedUsername);
-                }
+                rememberFloodgateWhitelistName(uuid, username);
                 result.complete(false);
                 return;
             }
@@ -480,10 +477,7 @@ final class WhitelistService {
             if (isExactUuidWhitelisted(uuid)) {
                 DebugLog.debug("Floodgate whitelist add for " + uuid + " confirmed after " + attempt
                         + " poll attempt(s)");
-                String normalizedUsername = normalizeWhitelistName(uuid, username);
-                if (normalizedUsername != null) {
-                    rememberWhitelistName(uuid, normalizedUsername);
-                }
+                rememberFloodgateWhitelistName(uuid, username);
                 result.complete(true);
                 return;
             }
@@ -502,10 +496,7 @@ final class WhitelistService {
                 result.complete(false);
                 return;
             }
-            String normalizedUsername = normalizeWhitelistName(uuid, username);
-            if (normalizedUsername != null) {
-                rememberWhitelistName(uuid, normalizedUsername);
-            }
+            rememberFloodgateWhitelistName(uuid, username);
             DebugLog.debug("Fell back to UUID-only whitelist add for " + uuid
                     + " after the name-based add did not complete in time.");
             result.complete(true);
@@ -564,9 +555,7 @@ final class WhitelistService {
 
         String normalizedUsername = normalizeWhitelistName(uuid, username);
         if (isExactUuidWhitelisted(uuid)) {
-            if (normalizedUsername != null) {
-                rememberWhitelistName(uuid, normalizedUsername);
-            }
+            rememberFloodgateWhitelistName(uuid, normalizedUsername);
             return false;
         }
 
@@ -589,10 +578,25 @@ final class WhitelistService {
         if (!isExactUuidWhitelisted(uuid)) {
             return false;
         }
-        if (normalizedUsername != null) {
-            rememberWhitelistName(uuid, normalizedUsername);
-        }
+        rememberFloodgateWhitelistName(uuid, normalizedUsername);
         return true;
+    }
+
+    private void rememberFloodgateWhitelistName(UUID uuid, String username) {
+        String normalizedUsername = normalizeWhitelistName(uuid, username);
+        if (normalizedUsername == null) {
+            return;
+        }
+        rememberWhitelistName(uuid, normalizedUsername);
+        try {
+            Path whitelistFile = plugin.getServer().getWorldContainer().toPath().resolve("whitelist.json");
+            if (new WhitelistFileStore(whitelistFile).updateName(uuid, normalizedUsername)) {
+                plugin.getServer().reloadWhitelist();
+                refreshWhitelistState();
+            }
+        } catch (IOException | RuntimeException ex) {
+            DebugLog.warn("Could not update the server whitelist name for " + uuid + ": " + ex.getMessage());
+        }
     }
 
     private String normalizeWhitelistName(UUID uuid, String username) {

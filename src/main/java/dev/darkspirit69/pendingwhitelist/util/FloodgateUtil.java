@@ -48,7 +48,7 @@ public final class FloodgateUtil {
 
     public record Identity(UUID floodgateUuid, String username, boolean useUuidForWhitelist) {
         public Identity(UUID floodgateUuid, String username) {
-            this(floodgateUuid, username, false);
+            this(floodgateUuid, username, true);
         }
     }
 
@@ -324,7 +324,9 @@ public final class FloodgateUtil {
         return playerPrefix;
     }
 
-    /** Clears cached reflection state so a plugin reload can re-detect Floodgate. */
+    /**
+     * Clears cached reflection state so a plugin reload can re-detect Floodgate.
+     */
     public static synchronized void reset() {
         getInstanceMethod = null;
         isFloodgatePlayerMethod = null;

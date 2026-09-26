@@ -6,7 +6,7 @@ plugins {
 
 // paper-plugin.yml receives the version during processResources.
 group = "dev.darkspirit69"
-version = "2.2.2"
+version = "2.2.3"
 description = "Tracks players rejected by a server whitelist and provides a graphical admin interface."
 val pluginVersion = version.toString()
 
