@@ -241,6 +241,7 @@ public final class PendingWhitelistPlugin extends JavaPlugin {
 
         changed |= addDefaultConfigValue(config, "logging.debug", false);
         changed |= addDefaultConfigValue(config, "page-size", 10);
+        changed |= addDefaultConfigValue(config, "operators.bypass-whitelist", true);
         changed |= addDefaultConfigValue(config, "notifications.join-attempts", true);
         changed |= addDefaultConfigValue(config, "notifications.join-attempt-cooldown-seconds", 60);
         changed |= addDefaultConfigValue(config, "purge.enabled", true);
@@ -275,7 +276,9 @@ public final class PendingWhitelistPlugin extends JavaPlugin {
         }
     }
 
-    /** Reports the effective global bStats setting without exposing the server UUID. */
+    /**
+     * Reports the effective global bStats setting without exposing the server UUID.
+     */
     private void logMetricsConfiguration(int pluginId) {
         if (!DebugLog.isEnabled()) {
             return;
@@ -340,6 +343,10 @@ public final class PendingWhitelistPlugin extends JavaPlugin {
 
     public boolean isJoinAttemptNotificationsEnabled() {
         return getConfig().getBoolean("notifications.join-attempts", true);
+    }
+
+    public boolean doOperatorsBypassWhitelist() {
+        return getConfig().getBoolean("operators.bypass-whitelist", true);
     }
 
     public int getJoinAttemptNotificationCooldownSeconds() {

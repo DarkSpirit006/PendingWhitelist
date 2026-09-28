@@ -49,6 +49,7 @@ Staff can then open `/wl` and see those players without having to search through
 - Shift-click support for adding or removing every player on the current page.
 - Clickable join notifications for staff with `pendingwhitelist.admin`.
 - Configurable notification cooldown.
+- Configurable whitelist bypass for server operators.
 - Automatic cleanup of old pending requests.
 - Background skin loading with local caching.
 - Floodgate support for Bedrock players.
@@ -138,6 +139,9 @@ logging:
   debug: false
 
 page-size: 10
+
+operators:
+  bypass-whitelist: true
 
 notifications:
   join-attempts: true

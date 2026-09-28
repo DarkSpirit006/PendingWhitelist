@@ -8,6 +8,9 @@ logging:
 
 page-size: 10
 
+operators:
+  bypass-whitelist: true
+
 notifications:
   join-attempts: true
   join-attempt-cooldown-seconds: 60
@@ -30,6 +33,10 @@ The setting can be changed from **/wl -> Configure** or directly in `config.yml`
 `notifications.join-attempts` controls whether staff receive notifications when a non-whitelisted player is rejected.
 
 `notifications.join-attempt-cooldown-seconds` controls how often the same player can trigger a notification. Set it to `0` to allow a notification for every attempt.
+
+## Operator access
+
+`operators.bypass-whitelist` allows server operators to join when the whitelist would otherwise reject them. Set it to `false` to require operators to be whitelisted like other players.
 
 ## Pending request cleanup
 
