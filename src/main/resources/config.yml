@@ -4,6 +4,9 @@ logging:
 
 page-size: 10
 
+operators:
+  bypass-whitelist: true
+
 notifications:
   join-attempts: true
   join-attempt-cooldown-seconds: 60

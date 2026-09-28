@@ -10,6 +10,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerLoginEvent;
+import org.bukkit.event.EventPriority;
 
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -30,10 +31,16 @@ public final class JoinListener implements Listener {
         this.updateNotifier = updateNotifier;
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.LOWEST)
     public void onPlayerLogin(PlayerLoginEvent event) {
         DebugLog.debug("PlayerLoginEvent: result=" + event.getResult() + ", asynchronous=" + event.isAsynchronous());
         if (event.getResult() != PlayerLoginEvent.Result.KICK_WHITELIST) {
+            return;
+        }
+
+        if (plugin.doOperatorsBypassWhitelist() && event.getPlayer().isOp()) {
+            DebugLog.debug("Allowing operator " + event.getPlayer().getName() + " to bypass the whitelist");
+            event.allow();
             return;
         }
 
