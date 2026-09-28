@@ -20,9 +20,6 @@ Review pending players and manage the whitelist directly in-game.
 
 </div>
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/DarkSpirit006/PendingWhitelist/main/assets/banner.png" alt="PendingWhitelist Banner" width="100%">
-</p>
 
 ## What it does
 
