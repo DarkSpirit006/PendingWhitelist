@@ -225,7 +225,6 @@ build/libs/PendingWhitelist-<version>.jar
 
 - [Usage guide](docs/usage.md)
 - [Configuration guide](docs/config.md)
-- [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)
 - [Third-party licenses](THIRD_PARTY_LICENSES.md)
 
