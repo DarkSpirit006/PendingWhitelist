@@ -19,7 +19,7 @@ repositories {
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.20-R0.1-SNAPSHOT")
-    implementation("com.google.code.gson:gson:2.13.0")
+    implementation("com.google.code.gson:gson:2.15.0")
     implementation("org.bstats:bstats-bukkit:3.2.1")
 
     testImplementation("org.junit.jupiter:junit-jupiter:6.1.3")
