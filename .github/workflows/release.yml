@@ -25,9 +25,9 @@ jobs:
         id: version
         shell: bash
         run: |
-          version=$(sed -n 's/^version = "\([^"]*\)"/\1/p' build.gradle.kts | head -n 1)
+          version=$(sed -n "s/^version = '\([^']*\)'/\1/p" build.gradle | head -n 1)
           if [ -z "$version" ]; then
-            echo "Unable to determine project version from build.gradle.kts."
+            echo "Unable to determine project version from build.gradle."
             exit 1
           fi
 

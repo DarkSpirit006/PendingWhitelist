@@ -201,7 +201,7 @@ For bStats troubleshooting, `plugins/bStats/config.yml` can be used to enable bS
 
 ## Building from source
 
-The project uses Gradle with the Kotlin DSL.
+The project uses Gradle with the Groovy DSL.
 
 ### Windows
 
@@ -261,13 +261,13 @@ PendingWhitelist is licensed under the [MIT License](LICENSE).
 [stars-badge]: https://img.shields.io/github/stars/DarkSpirit006/PendingWhitelist?style=for-the-badge&logo=github&logoColor=white&label=Stars
 [stars-link]: https://github.com/DarkSpirit006/PendingWhitelist/stargazers
 
-[java-badge]: https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2FDarkSpirit006%2FPendingWhitelist%2Frefs%2Fheads%2Fmain%2Fbuild.gradle.kts&search=options%5C.release%5C.set%5C%28%28%5Cd%2B%29%5C%29&replace=%241%2B&style=for-the-badge&logo=openjdk&logoColor=white&label=Java&color=f89820&cacheSeconds=300
+[java-badge]: https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2FDarkSpirit006%2FPendingWhitelist%2Frefs%2Fheads%2Fmain%2Fbuild.gradle&search=options%5C.release%5C%20%3D%5C%20%28%5Cd%2B%29&replace=%241%2B&style=for-the-badge&logo=openjdk&logoColor=white&label=Java&color=f89820&cacheSeconds=300
 [java-link]: https://adoptium.net/temurin/
 
 [gradle-badge]: https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2FDarkSpirit006%2FPendingWhitelist%2Frefs%2Fheads%2Fmain%2Fgradle%2Fwrapper%2Fgradle-wrapper.properties&search=gradle-%28%5B0-9.%5D%2B%29-bin&replace=%241&style=for-the-badge&logo=gradle&logoColor=white&label=Gradle&color=0f6b78&cacheSeconds=300
 [gradle-link]: https://gradle.org/
 
-[paper-api-badge]: https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2FDarkSpirit006%2FPendingWhitelist%2Frefs%2Fheads%2Fmain%2Fbuild.gradle.kts&search=paper-api%3A%28%5B0-9.%5D%2B%29-R&replace=%241%2B&style=for-the-badge&label=Paper%20API&color=33b5e5&cacheSeconds=300
+[paper-api-badge]: https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2FDarkSpirit006%2FPendingWhitelist%2Frefs%2Fheads%2Fmain%2Fbuild.gradle&search=paper-api%3A%28%5B0-9.%5D%2B%29-R&replace=%241%2B&style=for-the-badge&label=Paper%20API&color=33b5e5&cacheSeconds=300
 [paper-link]: https://papermc.io/
 
 [license-badge]: https://img.shields.io/github/license/DarkSpirit006/PendingWhitelist?style=for-the-badge&logo=opensourceinitiative&logoColor=white&label=License
